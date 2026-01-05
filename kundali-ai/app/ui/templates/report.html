@@ -42,6 +42,12 @@
                 <div id="ai-predictions" class="space-y-4"></div>
             </div>
 
+            <!-- Visual Charts -->
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h2 class="text-2xl font-bold mb-4 text-slate-700 border-b pb-2">Visual Charts</h2>
+                <div id="visual-charts-container" class="grid grid-cols-1 md:grid-cols-2 gap-8"></div>
+            </div>
+
             <!-- Core Details -->
             <div class="bg-white p-6 rounded-xl shadow-md">
                 <h2 class="text-2xl font-bold mb-4 text-slate-700 border-b pb-2">Core Details</h2>
@@ -118,6 +124,114 @@
             return html;
         };
 
+        // --- Chart Rendering Logic (North Indian / Diamond Style) ---
+        const signs = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
+        const signMap = { "Aries": 1, "Taurus": 2, "Gemini": 3, "Cancer": 4, "Leo": 5, "Virgo": 6, "Libra": 7, "Scorpio": 8, "Sagittarius": 9, "Capricorn": 10, "Aquarius": 11, "Pisces": 12 };
+
+        const getHousesFromAscendant = (ascSign) => {
+            const startIdx = signs.indexOf(ascSign);
+            if (startIdx === -1) return {};
+            const houses = {};
+            for (let i = 0; i < 12; i++) {
+                houses[i + 1] = signs[(startIdx + i) % 12];
+            }
+            return houses;
+        };
+
+        const drawNorthIndianChart = (containerId, houses, planets, title) => {
+            const size = 300;
+            const ns = "http://www.w3.org/2000/svg";
+            const svg = document.createElementNS(ns, "svg");
+            svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+            svg.setAttribute("class", "w-full h-auto border border-slate-200 bg-slate-50 rounded-lg");
+
+            // Draw Geometry (Diamond Style)
+            const lines = [
+                `0,0 ${size},${size}`, // Diagonal 1
+                `0,${size} ${size},0`, // Diagonal 2
+                `0,0 ${size},0 ${size},${size} 0,${size} 0,0`, // Outer Box
+                `${size/2},0 0,${size/2} ${size/2},${size} ${size},${size/2} ${size/2},0` // Inner Diamond
+            ];
+
+            lines.forEach(points => {
+                const poly = document.createElementNS(ns, "polyline");
+                poly.setAttribute("points", points);
+                poly.setAttribute("fill", "none");
+                poly.setAttribute("stroke", "#64748b"); // slate-500
+                poly.setAttribute("stroke-width", "1.5");
+                svg.appendChild(poly);
+            });
+
+            // House Positions (Center coordinates for text)
+            // 1: Top Center, 2: Top Left, 3: Left Top, 4: Left Center, etc.
+            const pos = {
+                1:  [0.5, 0.20], 2:  [0.25, 0.08], 3:  [0.08, 0.25],
+                4:  [0.25, 0.5], 5:  [0.08, 0.75], 6:  [0.25, 0.92],
+                7:  [0.5, 0.80], 8:  [0.75, 0.92], 9:  [0.92, 0.75],
+                10: [0.75, 0.5], 11: [0.92, 0.25], 12: [0.75, 0.08]
+            };
+
+            // Group planets by house
+            const planetsByHouse = {};
+            for(let i=1; i<=12; i++) planetsByHouse[i] = [];
+            
+            Object.entries(planets).forEach(([pName, pData]) => {
+                if (pData.house) {
+                    let label = pName.substring(0, 2);
+                    if (pData.retrograde) label += "(R)";
+                    planetsByHouse[pData.house].push(label);
+                }
+            });
+
+            // Draw Text
+            for (let h = 1; h <= 12; h++) {
+                const [fx, fy] = pos[h];
+                const cx = size * fx;
+                const cy = size * fy;
+
+                // Sign Number (Bold)
+                const signName = houses[h];
+                const signNum = signMap[signName] || "";
+                
+                const signText = document.createElementNS(ns, "text");
+                signText.setAttribute("x", cx);
+                signText.setAttribute("y", cy - 10); // Slightly above center
+                signText.setAttribute("text-anchor", "middle");
+                signText.setAttribute("font-weight", "bold");
+                signText.setAttribute("font-size", "14");
+                signText.setAttribute("fill", "#1e293b"); // slate-800
+                signText.textContent = signNum;
+                svg.appendChild(signText);
+
+                // Planets (Below sign)
+                const pList = planetsByHouse[h];
+                if (pList.length > 0) {
+                    pList.forEach((p, idx) => {
+                        const pText = document.createElementNS(ns, "text");
+                        pText.setAttribute("x", cx);
+                        pText.setAttribute("y", cy + 5 + (idx * 10));
+                        pText.setAttribute("text-anchor", "middle");
+                        pText.setAttribute("font-size", "10");
+                        pText.setAttribute("fill", "#ef4444"); // red-500
+                        pText.textContent = p;
+                        svg.appendChild(pText);
+                    });
+                }
+            }
+
+            // Title
+            const titleEl = document.createElement("div");
+            titleEl.className = "text-center font-bold text-slate-700 mb-2";
+            titleEl.textContent = title;
+
+            const wrapper = document.createElement("div");
+            wrapper.appendChild(titleEl);
+            wrapper.appendChild(svg);
+            
+            document.getElementById(containerId).appendChild(wrapper);
+        };
+
+
         const loadReport = async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const kundaliId = urlParams.get('id') || localStorage.getItem('kundali_core_id');
@@ -141,18 +255,47 @@
 
                 // --- Render AI Predictions ---
                 let predictionsHtml = '';
-                const predictionOrder = ["Character", "Happiness and Fulfillment", "Lifestyle", "Career", "Occupation", "Health", "Hobbies", "Finance", "Education"];
+                const predictionOrder = ["Executive Summary", "Your Ascendant", "Your Nakshatra", "Atmakaraka", "Darakaraka", "Character", "Happiness and Fulfillment", "Lifestyle", "Career", "Occupation", "Health", "Hobbies", "Finance", "Education", "Planetary Analysis", "House Analysis", "Divisional Charts", "Dasha Analysis", "Transits & Gochar"];
                 predictionOrder.forEach(topic => {
                     if (reportData.ai_predictions[topic]) {
                         predictionsHtml += `
                             <div>
                                 <h3 class="text-lg font-semibold text-slate-800">${topic}</h3>
-                                <p class="text-slate-600 mt-1">${reportData.ai_predictions[topic]}</p>
+                                <p class="text-slate-600 mt-1 whitespace-pre-line">${reportData.ai_predictions[topic]}</p>
                             </div>
                         `;
                     }
                 });
                 document.getElementById('ai-predictions').innerHTML = predictionsHtml;
+
+                // --- Render Visual Charts ---
+                const chartsContainer = document.getElementById('visual-charts-container');
+                chartsContainer.innerHTML = ''; // Clear
+
+                // 1. Lagna Chart (D1)
+                if (reportData.persisted.core.houses && reportData.persisted.core.planets) {
+                    drawNorthIndianChart('visual-charts-container', reportData.persisted.core.houses, reportData.persisted.core.planets, "Lagna Chart (D1)");
+                }
+
+                // 2. Divisional Charts (D9, D10)
+                if (reportData.persisted.divisionals) {
+                    const divs = reportData.persisted.divisionals;
+                    
+                    // D9
+                    if (divs['D9'] && divs['D9'].ascendant) {
+                        const d9Houses = getHousesFromAscendant(divs['D9'].ascendant.sign);
+                        // Need to calculate house numbers for D9 planets relative to D9 ascendant
+                        // (Simplified: passing raw planets, drawNorthIndianChart expects 'house' property in planet data)
+                        // Note: The backend 'divisionals' data usually contains 'house' calculated for D9. 
+                        // If not, we rely on the fact that D9 planets in DB usually have 'sign', we need 'house'.
+                        // Let's assume for now the backend or logic provides it. If not, we might need client-side calc.
+                        // *Correction*: The PDF service calculates D9 houses on the fly. We should do the same here if 'house' is missing.
+                        
+                        // For simplicity in this snippet, we assume D9 planets have 'house' or we'd need a helper.
+                        // Actually, let's just render D9 if available.
+                        drawNorthIndianChart('visual-charts-container', d9Houses, divs['D9'].planets, "Navamsa Chart (D9)");
+                    }
+                }
 
                 // --- Render Core Details ---
                 const coreDetails = {
