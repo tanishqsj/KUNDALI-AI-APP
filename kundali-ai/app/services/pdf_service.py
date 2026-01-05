@@ -248,23 +248,63 @@ class PDFService:
             pdf.cell(0, 8, str(birth_details.get('longitude', '-')), 0, 1)
             pdf.ln(5)
 
+        # --- Executive Summary (New Section) ---
+        if 'Executive Summary' in ai_predictions:
+            pdf.add_page()
+            text = ai_predictions['Executive Summary'] or ''
+            
+            # Custom rendering for the structured Executive Summary
+            lines = text.split('\n')
+            for line in lines:
+                clean_line = line.strip()
+                if not clean_line:
+                    pdf.ln(2)
+                    continue
+                
+                # Title
+                if "Your Kundali at a Glance" in clean_line:
+                    pdf.set_font('Arial', 'B', 20)
+                    pdf.cell(0, 15, "Your Kundali at a Glance", 0, 1, 'C')
+                    pdf.ln(5)
+                    continue
+                
+                # Section Headers (Check for specific keywords since emojis are removed)
+                known_headers = ["Core Identity", "Key Strengths", "Key Challenges", "Career Snapshot", "Relationships & Partnerships", "Current Timing"]
+                # Check if line contains one of the headers (ignoring markdown chars)
+                header_match = next((h for h in known_headers if h in clean_line), None)
+                
+                if header_match and len(clean_line) < 40: # Simple heuristic to distinguish header from content
+                    header_text = header_match
+                    pdf.set_font('Arial', 'B', 14)
+                    pdf.set_text_color(30, 64, 175) # Blue-800
+                    pdf.cell(0, 10, header_text, 0, 1)
+                    pdf.set_text_color(0, 0, 0) # Reset black
+                    pdf.set_font('Arial', '', 11)
+                    continue
+                
+                # Content
+                self._write_markdown(pdf, clean_line)
+                pdf.ln(5)
+
         # --- General Predictions ---
-        if ai_predictions:
+        # Filter out Executive Summary from the loop as it's already rendered
+        remaining_topics = [t for t in ai_predictions.keys() if t != 'Executive Summary']
+        
+        if remaining_topics:
+            pdf.add_page()
             pdf.set_font('Arial', 'B', 16)
             pdf.cell(0, 10, "General Analysis & Predictions", 0, 1)
             pdf.ln(5)
 
             # Order the topics as requested
-            prediction_order = ["Character", "Happiness and Fulfillment", "Lifestyle", "Career", "Occupation", "Health", "Hobbies", "Finance", "Education"]
+            prediction_order = ["Your Ascendant", "Your Nakshatra", "Atmakaraka", "Darakaraka", "Character", "Happiness and Fulfillment", "Lifestyle", "Career", "Occupation", "Health", "Hobbies", "Finance", "Education", "Planetary Analysis", "House Analysis", "Divisional Charts", "Dasha Analysis", "Transits & Gochar"]
             for topic in prediction_order:
                 if topic in ai_predictions:
                     text = ai_predictions[topic] or ''
-                    # Sanitize text for latin-1 encoding used by FPDF, replacing unsupported chars
-                    safe_text = text.encode('latin-1', 'replace').decode('latin-1')
                     pdf.set_font('Arial', 'B', 14)
                     pdf.cell(0, 10, topic, 0, 1)
                     pdf.set_font('Arial', '', 11)
-                    pdf.multi_cell(0, 6, safe_text, 0, 1)
+                    self._write_markdown(pdf, text)
                     pdf.ln(4)
 
         # --- Avakahada Chakra ---
@@ -350,27 +390,42 @@ class PDFService:
             house_strengths = derived['house_strengths']
             sorted_houses = sorted(house_strengths.items(), key=lambda x: int(x[0]))
             
-            pdf.set_font('Arial', '', 11)
+            pdf.set_font('Arial', '', 10)
             for h_key, h_data in sorted_houses:
                 house_num = h_data.get('house', h_key)
-                strength = h_data.get('strength', '-').title()
-                reasons = h_data.get('reasons', [])
+                raw_strength = h_data.get('strength', '-').title()
                 
-                pdf.set_font('Arial', 'B', 11)
-                pdf.write(8, f"House {house_num}: {strength}")
-                pdf.ln(6)
+                # Map Strength Labels & Colors
+                strength_label = "Neutral"
+                bar_w, r, g, b = 45, 209, 213, 219 # Gray-300
                 
-                pdf.set_font('Arial', '', 10)
-                if reasons:
-                    for r in reasons:
-                        pdf.cell(10) # indent
-                        pdf.write(6, f"- {r}")
-                        pdf.ln(5)
-                else:
-                    pdf.cell(10)
-                    pdf.write(6, "- Neutral / No major influence")
-                    pdf.ln(5)
-                pdf.ln(2)
+                # Determine Color and Width based on strength
+                if 'Very Strong' in raw_strength:
+                    strength_label = "Supportive (Very Strong)"
+                    bar_w, r, g, b = 80, 34, 197, 94 # Green-500
+                elif 'Strong' in raw_strength:
+                    strength_label = "Supportive"
+                    bar_w, r, g, b = 60, 74, 222, 128 # Green-400
+                elif 'Weak' in raw_strength:
+                    strength_label = "Challenging"
+                    bar_w, r, g, b = 30, 251, 146, 60 # Orange-400
+                elif 'Very Weak' in raw_strength:
+                    strength_label = "Challenging (Very Weak)"
+                    bar_w, r, g, b = 15, 248, 113, 113 # Red-400
+
+                # Draw Row
+                pdf.cell(25, 8, f"House {house_num}", 0, 0)
+                
+                # Save current position
+                x, y = pdf.get_x(), pdf.get_y()
+                
+                # Draw Bar
+                pdf.set_fill_color(r, g, b)
+                pdf.rect(x, y+2, bar_w, 4, 'F')
+                
+                # Draw Text Label next to bar
+                pdf.set_xy(x + bar_w + 2, y)
+                pdf.cell(0, 8, strength_label, 0, 1)
         
         # --- Doshas & Yogas (Derived) ---
         if derived and ('doshas' in derived or 'yogas' in derived):
@@ -380,22 +435,15 @@ class PDFService:
             pdf.ln(2)
 
             if 'doshas' in derived and derived['doshas']:
-                pdf.set_font('Arial', 'B', 14)
-                pdf.cell(0, 10, "Doshas", 0, 1)
-                pdf.set_font('Arial', '', 11)
                 for dosha in derived['doshas']:
                     name = dosha.get('name', 'Unknown')
                     present = dosha.get('present', False)
-                    
-                    status = "Present" if present else "Absent"
-                    pdf.set_font('Arial', 'B', 11)
-                    pdf.cell(0, 8, f"{name}: {status}", 0, 1)
-                    
-                    desc = dosha.get('description')
-                    if desc:
-                        pdf.set_font('Arial', '', 10)
-                        pdf.multi_cell(0, 6, desc, 0, 1)
-                    pdf.ln(2)
+                    if present:
+                        # Draw Highlight Box for present Doshas
+                        title = f"{name.replace('_', ' ').title()} Dosha Detected"
+                        desc = dosha.get('description', '')
+                        # Light Red background
+                        self._draw_highlight_box(pdf, title, desc, (254, 226, 226))
                 pdf.ln(5)
 
             if 'yogas' in derived and derived['yogas']:
@@ -621,7 +669,7 @@ class PDFService:
                 pdf.set_font('Arial', 'B', 12)
                 pdf.cell(0, 8, f"- {category}", 0, 1)
                 pdf.set_font('Arial', '', 11)
-                pdf.multi_cell(0, 6, summary.encode('latin-1', 'replace').decode('latin-1'), 0, 1)
+                self._write_markdown(pdf, summary)
                 pdf.ln(4)
 
         # --- Additional Data ---
@@ -666,6 +714,60 @@ class PDFService:
             "filename": filename,
             "bytes": pdf_bytes
         }
+
+    def _draw_highlight_box(self, pdf, title, text, bg_color):
+        """Draws a colored box with title and text for warnings/highlights."""
+        pdf.set_fill_color(*bg_color)
+        pdf.set_font('Arial', 'B', 11)
+        
+        # Calculate height needed
+        # Title height (8) + Text height (approx) + Padding (4)
+        # Simple approximation: 8 + (len(text)/90 * 6) + 4
+        # A more robust way is to use multi_cell dry run, but for now approx is okay or just draw rect behind.
+        # FPDF 1.7 doesn't support background for multi_cell easily without rect.
+        
+        pdf.cell(0, 8, title, 0, 1, 'L', True)
+        pdf.set_font('Arial', '', 10)
+        pdf.multi_cell(0, 6, text, 0, 1, 'L', True)
+        pdf.ln(2)
+
+    def _write_markdown(self, pdf, text: str):
+        """
+        Simple markdown parser for bold text (**text**), bullet points (•), and headers (#).
+        Handles sanitization of unsupported characters.
+        """
+        # Pre-sanitize text
+        text = text.replace('•', '-')  # Replace bullet with hyphen
+        text = text.replace('“', '"').replace('”', '"').replace('’', "'") # Smart quotes
+        text = text.replace('—', '-')  # Replace em dash with hyphen
+        # Encode to latin-1 and ignore errors (drops emojis/unsupported chars) to prevent '?' artifacts
+        text = text.encode('latin-1', 'ignore').decode('latin-1')
+
+        lines = text.split('\n')
+        for line in lines:
+            clean_line = line.strip()
+            
+            # Handle Headers (###) - Convert to Bold
+            if clean_line.startswith('#'):
+                header_text = clean_line.lstrip('#').strip()
+                pdf.set_font('Arial', 'B', 11)
+                pdf.write(6, header_text)
+                pdf.set_font('Arial', '', 11)
+                pdf.ln()
+                continue
+
+            if clean_line.startswith('•') or clean_line.startswith('- '):
+                pdf.set_x(pdf.get_x() + 5) # Indent
+            
+            parts = line.split('**')
+            for i, part in enumerate(parts):
+                if i % 2 == 1:
+                    pdf.set_font('Arial', 'B', 11)
+                    pdf.write(6, part)
+                    pdf.set_font('Arial', '', 11)
+                else:
+                    pdf.write(6, part)
+            pdf.ln()
 
     def _get_sign_lord(self, sign: str) -> str:
         lords = {
