@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kundali Report</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen font-sans">
+    <nav class="bg-indigo-700 text-white shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-3 flex flex-wrap justify-between items-center">
+            <a href="index.html" class="text-2xl font-bold tracking-wider flex items-center gap-2"><span>🔮</span> KUNDALI AI</a>
+            <div class="flex gap-4 text-sm font-medium overflow-x-auto">
+                <a href="index.html" class="hover:text-indigo-200 transition">Home</a>
+                <a href="create.html" class="hover:text-indigo-200 transition">Create</a>
+                <a href="ask.html" class="hover:text-indigo-200 transition">Ask AI</a>
+                <a href="voice.html" class="hover:text-indigo-200 transition">Voice</a>
+                <a href="report.html" class="text-white border-b-2 border-white">Reports</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto mt-8 p-4">
+        <div id="loading" class="text-center py-20">
+            <p class="text-xl text-slate-600">Loading Report...</p>
+        </div>
+
+        <div id="report-content" class="hidden space-y-8">
+            <div class="flex justify-between items-center">
+                <h1 class="text-4xl font-bold text-slate-800">Kundali Report</h1>
+                <button id="downloadPdfBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow transition duration-200">
+                    Download PDF
+                </button>
+            </div>
+
+            <!-- Birth Particulars -->
+            <div id="birth-particulars" class="bg-white p-6 rounded-xl shadow-md"></div>
+
+            <!-- AI Predictions -->
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h2 class="text-2xl font-bold mb-4 text-slate-700 border-b pb-2">General Predictions</h2>
+                <div id="ai-predictions" class="space-y-4"></div>
+            </div>
+
+            <!-- Core Details -->
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h2 class="text-2xl font-bold mb-4 text-slate-700 border-b pb-2">Core Details</h2>
+                <div id="core-details" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+            </div>
+            
+            <!-- Planetary Positions -->
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h2 class="text-2xl font-bold mb-4 text-slate-700 border-b pb-2">Planetary Positions</h2>
+                <div id="planets-table-container" class="overflow-x-auto"></div>
+            </div>
+
+            <!-- Vimshottari Dasha -->
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h2 class="text-2xl font-bold mb-4 text-slate-700 border-b pb-2">Vimshottari Dasha</h2>
+                <div id="dasha-table-container" class="overflow-x-auto"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Global variable to store the report data
+        let reportData = null;
+
+        const getApiBaseUrl = () => {
+            if (window.location.protocol === 'file:') return 'http://127.0.0.1:8000';
+            return '';
+        };
+        const API_BASE = getApiBaseUrl();
+
+        const renderTable = (headers, data, keyOrder) => {
+            let table = '<table class="min-w-full divide-y divide-slate-200">';
+            table += '<thead class="bg-slate-50"><tr>';
+            headers.forEach(h => table += `<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">${h}</th>`);
+            table += '</tr></thead><tbody class="bg-white divide-y divide-slate-200">';
+
+            if (Array.isArray(data)) { // For arrays of objects
+                data.forEach(row => {
+                    table += '<tr>';
+                    keyOrder.forEach(key => table += `<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-700">${row[key] || '-'}</td>`);
+                    table += '</tr>';
+                });
+            } else { // For an object of objects (like planets)
+                 Object.entries(data).forEach(([name, row]) => {
+                    table += '<tr>';
+                    table += `<td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-800">${name}</td>`;
+                    keyOrder.forEach(key => {
+                        let value = row[key];
+                        if (typeof value === 'number') value = value.toFixed(2);
+                        if (key === 'retrograde' && value) value = 'Yes';
+                        else if (key === 'retrograde' && !value) value = 'No';
+                        table += `<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-700">${value || '-'}</td>`
+                    });
+                    table += '</tr>';
+                });
+            }
+            
+            table += '</tbody></table>';
+            return table;
+        };
+
+        const renderKeyValue = (data) => {
+            let html = '<dl class="space-y-4">';
+            for (const [key, value] of Object.entries(data)) {
+                html += `
+                    <div class="grid grid-cols-3 gap-4">
+                        <dt class="text-sm font-medium text-slate-500">${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</dt>
+                        <dd class="mt-1 text-sm text-slate-900 col-span-2">${value}</dd>
+                    </div>
+                `;
+            }
+            html += '</dl>';
+            return html;
+        };
+
+        const loadReport = async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const kundaliId = urlParams.get('id') || localStorage.getItem('kundali_core_id');
+
+            if (!kundaliId) {
+                document.getElementById('loading').innerHTML = '<p class="text-red-500">No Kundali ID found. Please create a kundali first.</p>';
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/api/v1/report/text?kundali_core_id=${kundaliId}&include_transits=true`);
+                if (!res.ok) throw new Error('Failed to fetch report data.');
+                
+                reportData = await res.json(); // Store data globally
+
+                // --- Render Birth Particulars ---
+                document.getElementById('birth-particulars').innerHTML = `
+                    <h2 class="text-2xl font-bold mb-4 text-slate-700 border-b pb-2">Birth Particulars for ${reportData.birth_details.name}</h2>
+                    ${renderKeyValue(reportData.birth_details)}
+                `;
+
+                // --- Render AI Predictions ---
+                let predictionsHtml = '';
+                const predictionOrder = ["Character", "Happiness and Fulfillment", "Lifestyle", "Career", "Occupation", "Health", "Hobbies", "Finance", "Education"];
+                predictionOrder.forEach(topic => {
+                    if (reportData.ai_predictions[topic]) {
+                        predictionsHtml += `
+                            <div>
+                                <h3 class="text-lg font-semibold text-slate-800">${topic}</h3>
+                                <p class="text-slate-600 mt-1">${reportData.ai_predictions[topic]}</p>
+                            </div>
+                        `;
+                    }
+                });
+                document.getElementById('ai-predictions').innerHTML = predictionsHtml;
+
+                // --- Render Core Details ---
+                const coreDetails = {
+                    Ayanamsa: reportData.persisted.core.ayanamsa,
+                    Ascendant: `${reportData.persisted.core.ascendant.sign} (${reportData.persisted.core.ascendant.degree.toFixed(2)}°)`
+                };
+                document.getElementById('core-details').innerHTML = renderKeyValue(coreDetails);
+
+                // --- Render Planets Table ---
+                const planetHeaders = ['Planet', 'Sign', 'Degree', 'House', 'Nakshatra', 'Retrograde'];
+                const planetKeyOrder = ['sign', 'degree', 'house', 'nakshatra', 'retrograde'];
+                document.getElementById('planets-table-container').innerHTML = renderTable(planetHeaders, reportData.persisted.core.planets, planetKeyOrder);
+
+                // --- Render Dasha Table ---
+                const dashaHeaders = ['Dasha Lord', 'Start Date', 'End Date', 'Duration (Yrs)'];
+                const dashaKeyOrder = ['lord', 'start_date', 'end_date', 'duration_years'];
+                const formattedDashas = reportData.dashas.map(d => ({
+                    ...d,
+                    start_date: d.start_date.split('T')[0],
+                    end_date: d.end_date.split('T')[0],
+                }));
+                document.getElementById('dasha-table-container').innerHTML = renderTable(dashaHeaders, formattedDashas, dashaKeyOrder);
+
+
+                // Show content
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('report-content').classList.remove('hidden');
+
+            } catch (error) {
+                console.error(error);
+                document.getElementById('loading').innerHTML = `<p class="text-red-500">Error: ${error.message}</p>`;
+            }
+        };
+
+        const downloadPdf = async () => {
+            const btn = document.getElementById('downloadPdfBtn');
+            if (!reportData) {
+                alert('Report data is not loaded yet.');
+                return;
+            }
+            
+            btn.textContent = 'Generating PDF...';
+            btn.disabled = true;
+
+            try {
+                // We send the already-fetched data to the backend to render the PDF
+                const res = await fetch(`${API_BASE}/api/v1/report/pdf_from_data`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(reportData)
+                });
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(`PDF generation failed: ${errorText}`);
+                }
+
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `kundali-report-${reportData.birth_details.name.replace(/\s+/g, '-')}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+
+            } catch (error) {
+                console.error('PDF Download Error:', error);
+                alert(`Error downloading PDF: ${error.message}`);
+            } finally {
+                btn.textContent = 'Download PDF';
+                btn.disabled = false;
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadReport();
+            document.getElementById('downloadPdfBtn').addEventListener('click', downloadPdf);
+        });
+    </script>
+</body>
+</html>
