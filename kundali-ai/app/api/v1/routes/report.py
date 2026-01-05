@@ -3,6 +3,7 @@ from fastapi.responses import Response
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any
 
 from app.persistence.db import get_db_session
 from app.persistence.repositories.kundali_core_repo import KundaliCoreRepository
@@ -103,4 +104,13 @@ async def get_text_report(
         timestamp=datetime.now(timezone.utc),
     )
 
-    return report_context
+    return _strip_markdown(report_context)
+
+def _strip_markdown(data: Any) -> Any:
+    if isinstance(data, str):
+        return data.replace("**", "")
+    if isinstance(data, dict):
+        return {k: _strip_markdown(v) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_strip_markdown(i) for i in data]
+    return data
