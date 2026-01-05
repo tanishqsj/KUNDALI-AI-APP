@@ -105,22 +105,22 @@ class ExplanationService:
         triggers: List[Dict[str, Any]],
     ) -> str:
         if not triggers:
-            return f"Rule '{rule.rule_key}' matched."
+            return f"Rule '**{rule.rule_key}**' matched."
 
         parts = []
         for t in triggers:
             if t["entity_type"] == "planet":
                 parts.append(
-                    f"{t['entity_key']} in {t['snapshot'].get('sign')} "
-                    f"(house {t['snapshot'].get('house')})"
+                    f"**{t['entity_key']}** in **{t['snapshot'].get('sign')}** "
+                    f"(house **{t['snapshot'].get('house')}**)"
                 )
             elif t["entity_type"] == "house":
                 parts.append(
-                    f"house {t['entity_key']} is "
-                    f"{t['snapshot'].get('strength')}"
+                    f"house **{t['entity_key']}** is "
+                    f"**{t['snapshot'].get('strength')}**"
                 )
             elif t["entity_type"] == "dosha":
-                parts.append(f"{t['entity_key']} dosha present")
+                parts.append(f"**{t['entity_key']}** dosha present")
 
         joined = "; ".join(parts)
         return f"This applies because {joined}."
@@ -134,7 +134,7 @@ class ExplanationService:
             "impact": "High" if "Peak" in status else "Medium",
             "confidence": "1.0",
             "explanation": {
-                "summary": f"Sade Sati Status: {status}. {desc}",
+                "summary": f"Sade Sati Status: **{status}**. {desc}",
                 "triggers": [],
             },
         }
@@ -147,7 +147,7 @@ class ExplanationService:
             "impact": "High",
             "confidence": "1.0",
             "explanation": {
-                "summary": f"{dosha_name} is present. {data.get('description', '')}",
+                "summary": f"**{dosha_name}** is present. {data.get('description', '')}",
                 "triggers": [],
             },
         }
@@ -156,9 +156,9 @@ class ExplanationService:
         md = current["mahadasha"]
         ad = current.get("antardasha")
         
-        summary = f"Current Period: {md['lord']} Mahadasha"
+        summary = f"Current Period: **{md['lord']}** Mahadasha"
         if ad:
-            summary += f" / {ad['lord']} Antardasha"
+            summary += f" / **{ad['lord']}** Antardasha"
             end_date = ad['end_date'].split('T')[0]
             summary += f" (until {end_date})."
         else:
@@ -177,7 +177,7 @@ class ExplanationService:
         }
 
     def _build_avakahada_explanation(self, avakahada: Dict[str, Any]) -> Dict[str, Any]:
-        details = ", ".join([f"{k}: {v}" for k, v in avakahada.items()])
+        details = ", ".join([f"**{k}**: {v}" for k, v in avakahada.items()])
         return {
             "rule_key": "avakahada_chakra",
             "category": "Profile",
