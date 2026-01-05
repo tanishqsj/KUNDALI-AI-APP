@@ -27,4 +27,15 @@ except ImportError:
 app.mount("/ui", StaticFiles(directory="app/ui/templates", html=True), name="ui")
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--host", type=str, default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8000)
+    args = parser.parse_args()
+
+    print(f"Server starting...")
+    print(f"Access UI locally at: http://127.0.0.1:{args.port}/ui")
+    if args.host == "0.0.0.0":
+        print(f"Server is accessible on your LAN IP as well.")
+
+    uvicorn.run("app.main:app", host=args.host, port=args.port, reload=True)
