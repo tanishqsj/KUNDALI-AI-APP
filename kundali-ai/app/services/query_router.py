@@ -185,19 +185,7 @@ class QueryRouter:
         needs_rules = any(k in q for k in self.RULE_KEYWORDS)
         needs_transits = any(k in q for k in self.TRANSIT_KEYWORDS)
 
-        # AI needed if subjective / advisory language is present
-        needs_ai = any(
-            phrase in q
-            for phrase in [
-                "should i", "what does it mean",
-                "will i", "can i", "advice",
-                "suggest", "explain",
-            ]
-        )
-
-        # Safety: rules-only questions still get AI if vague
-        if not needs_rules:
-            needs_ai = True
+        needs_ai = True
 
         return {
             "needs_rules": needs_rules,
