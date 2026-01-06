@@ -24,7 +24,7 @@ except ImportError:
     print("WARNING: Could not import api_router from app.api.v1.router. Please verify your API router location.")
 
 # 3. Mount the UI
-app.mount("/ui", StaticFiles(directory="app/ui/templates", html=True), name="ui")
+app.mount("/", StaticFiles(directory="app/ui/templates", html=True), name="ui")
 
 if __name__ == "__main__":
     import argparse
