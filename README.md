@@ -233,7 +233,7 @@ uvicorn app.main:app --reload
 ### 6️⃣ Access
 
 * 📘 **Swagger API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-* 🖥️ **Frontend UI**: [http://localhost:8000/ui/](http://localhost:8000/ui/)
+* 🖥️ **Frontend UI**: [http://localhost:8000/](http://localhost:8000/)
 * ❤️ **Health Check**: [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health)
 
 ---
