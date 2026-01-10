@@ -33,6 +33,8 @@ class AIService:
         kundali_chart,
         explanations: List[Dict[str, Any]],
         transits: Dict[str, Any] | None = None,
+        derived: Dict[str, Any] | None = None,
+        divisionals: List[Any] | None = None,
     ) -> Dict[str, Any]:
         """
         Generate an AI answer grounded in astrology facts.
@@ -44,9 +46,63 @@ class AIService:
 
         prompt_builder = self._select_prompt_builder(question)
 
+        # Sanitize chart data to send only what's necessary for astrology
+        # This saves tokens and improves focus
+        sanitized_chart = {
+            "ascendant": {
+                "sign": kundali_chart.ascendant.sign,
+                "degree": round(kundali_chart.ascendant.degree, 2)
+            },
+            "planets": {
+                name: {
+                    "sign": p.sign, "house": p.house, "degree": round(p.degree, 2),
+                    "nakshatra": p.nakshatra, "retrograde": p.retrograde
+                }
+                for name, p in kundali_chart.planets.items()
+            }
+        }
+
+        # Calculate Atmakaraka & Darakaraka (7-Karaka scheme)
+        karaka_planets = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"]
+        candidates = []
+        for p_name in karaka_planets:
+            p_obj = kundali_chart.planets.get(p_name)
+            if p_obj:
+                candidates.append({"name": p_name, "degree": p_obj.degree})
+        
+        candidates.sort(key=lambda x: x["degree"], reverse=True)
+        sanitized_chart["karakas"] = {
+            "atmakaraka": candidates[0]["name"] if candidates else None,
+            "darakaraka": candidates[-1]["name"] if candidates else None
+        }
+
+        # Include key divisional charts (D9 for relationships, D10 for career)
+        if divisionals:
+            sanitized_chart["divisionals"] = {}
+            for div in divisionals:
+                if div.chart_type in ["D9", "D10"]:
+                    sanitized_chart["divisionals"][div.chart_type] = {
+                        "ascendant": div.chart_data.get("ascendant"),
+                        "planets": {
+                            p_name: {"sign": p_data.get("sign"), "house": p_data.get("house")}
+                            for p_name, p_data in div.chart_data.get("planets", {}).items()
+                        }
+                    }
+
+        # Include strengths from derived data
+        if derived:
+            sanitized_chart["strengths"] = {
+                "planet_strengths": {
+                    k: v.get("strength") for k, v in derived.get("planet_strengths", {}).items()
+                },
+                "house_strengths": {
+                    k: v.get("strength") for k, v in derived.get("house_strengths", {}).items()
+                }
+            }
+
         prompt = prompt_builder(
             question=question,
-            kundali=kundali_chart.model_dump(),
+            kundali=sanitized_chart,
             explanations=explanations,
             transits=transits,
         )
@@ -81,6 +137,9 @@ class AIService:
         """
 
         q = question.lower()
+
+        if "comprehensive analysis" in q or "general predictions" in q:
+            return build_base_prompt
 
         if any(k in q for k in ["job", "career", "profession", "work"]):
             return build_career_prompt

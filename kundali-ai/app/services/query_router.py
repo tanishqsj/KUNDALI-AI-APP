@@ -9,6 +9,8 @@ from app.cache.query_cache import QueryCache
 from app.domain.kundali.calculator import KundaliCalculator
 from app.persistence.repositories.birth_profile_repo import BirthProfileRepository
 from app.persistence.repositories.kundali_core_repo import KundaliCoreRepository
+from app.persistence.repositories.kundali_derived_repo import KundaliDerivedRepository
+from app.persistence.repositories.kundali_divisional_repo import KundaliDivisionalRepository
 from app.services.rule_service import RuleService
 from app.services.explanation_service import ExplanationService
 from app.services.ai_service import AIService
@@ -76,10 +78,14 @@ class QueryRouter:
         # ─────────────────────────────────────────────
         core_repo = KundaliCoreRepository(session)
         birth_repo = BirthProfileRepository(session)
+        derived_repo = KundaliDerivedRepository(session)
+        divisional_repo = KundaliDivisionalRepository(session)
 
         # We need birth date for Dasha calculation
         kundali_core = await core_repo.get_by_id(kundali_core_id)
         birth_profile = await birth_repo.get_by_id(kundali_core.birth_profile_id)
+        kundali_derived = await derived_repo.get_by_core_id(kundali_core_id)
+        kundali_divisionals = await divisional_repo.get_by_core_id(kundali_core_id)
 
         # Calculate Vimshottari Dasha
         dashas = self.calculator.calculate_vimshottari_dasha(
@@ -98,7 +104,11 @@ class QueryRouter:
             "mangal": self.calculator.calculate_mangal_dosha(kundali_chart.planets),
             "kalsarpa": self.calculator.calculate_kalsarpa_dosha(kundali_chart.planets)
         }
-        # Avakahada is less critical for chat, skipping to save tokens/time if needed, or add if desired.
+
+        avakahada = self.calculator.calculate_avakahada_chakra(
+            moon_sign=kundali_chart.planets["Moon"].sign,
+            moon_degree=kundali_chart.planets["Moon"].degree
+        )
 
         # ─────────────────────────────────────────────
         # 1. Rule evaluation (always first)
@@ -117,6 +127,7 @@ class QueryRouter:
             dashas=dashas,
             sade_sati=sade_sati,
             dosha_analysis=dosha_analysis,
+            avakahada=avakahada,
         )
 
         # ─────────────────────────────────────────────
@@ -141,6 +152,8 @@ class QueryRouter:
                 kundali_chart=kundali_chart,
                 explanations=explanations,
                 transits=transit_payload,
+                derived=kundali_derived.to_dict() if kundali_derived else None,
+                divisionals=kundali_divisionals,
             )
 
             return {
