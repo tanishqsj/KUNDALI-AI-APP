@@ -287,8 +287,9 @@ class PDFService:
                 pdf.ln(5)
 
         # --- General Predictions ---
-        # Filter out Executive Summary from the loop as it's already rendered
-        remaining_topics = [t for t in ai_predictions.keys() if t != 'Executive Summary']
+        # Use the sections list from meta for consistent ordering, excluding Executive Summary
+        sections = meta.get('sections', [])
+        remaining_topics = [s for s in sections if s != 'Executive Summary' and s in ai_predictions]
         
         if remaining_topics:
             pdf.add_page()
@@ -296,16 +297,13 @@ class PDFService:
             pdf.cell(0, 10, "General Analysis & Predictions", 0, 1)
             pdf.ln(5)
 
-            # Order the topics as requested
-            prediction_order = ["Your Ascendant", "Your Nakshatra", "Atmakaraka", "Darakaraka", "Character", "Happiness and Fulfillment", "Lifestyle", "Career", "Occupation", "Health", "Hobbies", "Finance", "Education", "Planetary Analysis", "House Analysis", "Divisional Charts", "Dasha Analysis", "Transits & Gochar"]
-            for topic in prediction_order:
-                if topic in ai_predictions:
-                    text = ai_predictions[topic] or ''
-                    pdf.set_font('Arial', 'B', 14)
-                    pdf.cell(0, 10, topic, 0, 1)
-                    pdf.set_font('Arial', '', 11)
-                    self._write_markdown(pdf, text)
-                    pdf.ln(4)
+            for topic in remaining_topics:
+                text = ai_predictions[topic] or ''
+                pdf.set_font('Arial', 'B', 14)
+                pdf.cell(0, 10, topic, 0, 1)
+                pdf.set_font('Arial', '', 11)
+                self._write_markdown(pdf, text)
+                pdf.ln(4)
 
         # --- Avakahada Chakra ---
         if avakahada:

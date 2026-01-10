@@ -190,15 +190,25 @@ class ReportService:
                 "2. How to find it in the chart? "
                 "3. What effect does it have on my relationships and the personality of my potential partner?"
             ) if darakaraka else "Explain Darakaraka generally.",
-            "Character": "Describe my character and personality based on my chart.",
-            "Happiness and Fulfillment": "What are the sources of happiness and fulfillment in my life according to my chart?",
-            "Lifestyle": "What kind of lifestyle is suggested by my astrological chart?",
-            "Career": "Provide a general overview of my career path and profession.",
-            "Occupation": "What are some suitable occupations for me based on my chart?",
-            "Health": "What are the general tendencies for my health and well-being? Do not give medical advice.",
-            "Hobbies": "What hobbies and interests might I enjoy based on my chart?",
-            "Finance": "What is the outlook for my finances and wealth accumulation?",
-            "Education": "What does my chart say about my education and learning style?",
+            "General Predictions I": (
+                "Provide a comprehensive analysis of my life. You MUST cover exactly these 5 sections in order, "
+                "using the exact bolded titles provided below:\n\n"
+                "1. **Character**: Describe my character and personality based on my chart.\n"
+                "2. **Happiness and Fulfillment**: What are the sources of happiness and fulfillment in my life?\n"
+                "3. **Lifestyle**: What kind of lifestyle is suggested by my astrological chart?\n"
+                "4. **Career**: Provide a general overview of my career path and profession.\n"
+                "5. **Occupation**: What are some suitable occupations for me based on my chart?\n\n"
+                "Each section should be 1-2 paragraphs. Do not skip any section."
+            ),
+            "General Predictions II": (
+                "Provide a comprehensive analysis of my life. You MUST cover exactly these 4 sections in order, "
+                "using the exact bolded titles provided below:\n\n"
+                "6. **Health**: What are the general tendencies for my health and well-being? (No medical advice).\n"
+                "7. **Hobbies**: What hobbies and interests might I enjoy based on my chart?\n"
+                "8. **Finance**: What is the outlook for my finances and wealth accumulation?\n"
+                "9. **Education**: What does my chart say about my education and learning style?\n\n"
+                "Each section should be 1-2 paragraphs. Do not skip any section."
+            ),
         }
 
         # --- Add Technical Analysis Topics ---
@@ -299,10 +309,34 @@ class ReportService:
         prediction_results = await asyncio.gather(*tasks)
         ai_predictions = dict(prediction_results)
 
+        # Define the desired order for the report sections (for UI dropdowns and PDF)
+        report_sections_order = [
+            "Executive Summary",
+            "Your Ascendant",
+            "Your Nakshatra",
+            "Atmakaraka",
+            "Darakaraka",
+            "General Predictions I",
+            "General Predictions II",
+            "House Analysis",
+            "Planetary Analysis",
+            "Divisional Charts",
+            "Dasha Analysis",
+            "Transits & Gochar"
+        ]
+
+        # Ensure ai_predictions is ordered according to report_sections_order
+        ordered_predictions = {s: ai_predictions[s] for s in report_sections_order if s in ai_predictions}
+        # Add any remaining topics that might have been added dynamically
+        for section, content in ai_predictions.items():
+            if section not in ordered_predictions:
+                ordered_predictions[section] = content
+
         return {
             "meta": {
                 "generated_at": datetime.utcnow().isoformat(),
                 "include_transits": include_transits,
+                "sections": list(ordered_predictions.keys()),
             },
             "birth_details": {
                 "name": birth_profile.name,
@@ -328,5 +362,5 @@ class ReportService:
             "sade_sati": sade_sati,
             "dosha_analysis": dosha_analysis,
             "avakahada": avakahada,
-            "ai_predictions": ai_predictions,
+            "ai_predictions": ordered_predictions,
         }
