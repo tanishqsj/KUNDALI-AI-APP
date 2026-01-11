@@ -27,6 +27,7 @@ from app.persistence.models.rule_mapping import RuleMapping
 from app.persistence.models.subscription import Subscription
 from app.persistence.models.usage_log import UsageLog
 from app.persistence.models.transit import Transit
+from app.persistence.models.knowledge_item import KnowledgeItem
 
 
 

@@ -15,6 +15,7 @@ from app.services.rule_service import RuleService
 from app.services.explanation_service import ExplanationService
 from app.services.ai_service import AIService
 from app.services.transit_service import TransitService
+from app.services.knowledge_service import KnowledgeService
 
 
 class QueryRouter:
@@ -45,6 +46,7 @@ class QueryRouter:
         self.transit_service = TransitService()
         self.cache = QueryCache()
         self.calculator = KundaliCalculator()
+        self.knowledge_service = KnowledgeService()
 
     # ─────────────────────────────────────────────
     # Public API
@@ -144,6 +146,15 @@ class QueryRouter:
         # ─────────────────────────────────────────────
         # 3. AI synthesis (if required)
         # ─────────────────────────────────────────────
+        #Retrieve Context from Knowledge Base
+        rag_context = []
+        if intent["needs_ai"]:
+            # We pass 'session' because the Repo needs it
+            rag_context = await self.knowledge_service.retrieve_context(
+                session=session, 
+                query=question, 
+                limit=3
+            )
 
         if intent["needs_ai"]:
             ai_answer = await self.ai_service.answer(
@@ -154,6 +165,7 @@ class QueryRouter:
                 transits=transit_payload,
                 derived=kundali_derived.to_dict() if kundali_derived else None,
                 divisionals=kundali_divisionals,
+                rag_context=rag_context,
             )
 
             return {
@@ -161,6 +173,7 @@ class QueryRouter:
                 "answer": ai_answer,
                 "explanations": explanations,
                 "transits": transit_payload,
+                "rag_sources": len(rag_context),
             }
 
         # ─────────────────────────────────────────────

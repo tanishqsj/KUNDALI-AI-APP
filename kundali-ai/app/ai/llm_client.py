@@ -1,5 +1,5 @@
 import asyncio
-from typing import Optional
+from typing import Optional, List
 
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion
@@ -59,9 +59,7 @@ class LLMClient:
     ) -> str:
         """
         Generate a completion from the LLM.
-        Returns raw text.
         """
-
         for attempt in range(1, self.retries + 1):
             try:
                 response = await asyncio.wait_for(
@@ -81,6 +79,19 @@ class LLMClient:
                 await asyncio.sleep(self._backoff(attempt))
 
         raise LLMClientError("LLM request failed")
+
+    async def get_embedding(self, text: str) -> List[float]:
+        """
+        Generate an embedding vector for the given text.
+        """
+        try:
+            response = await self.client.embeddings.create(
+                input=text,
+                model="text-embedding-3-small"
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            raise LLMClientError(f"Embedding failed: {str(e)}")
 
     # ─────────────────────────────────────────────
     # Internal helpers

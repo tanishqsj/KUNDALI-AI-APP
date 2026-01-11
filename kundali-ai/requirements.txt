@@ -11,3 +11,7 @@ python-multipart
 openai
 redis
 pyswisseph
+pgvector
+langchain
+langchain-text-splitters
+pypdf

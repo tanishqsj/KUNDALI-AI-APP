@@ -35,6 +35,7 @@ class AIService:
         transits: Dict[str, Any] | None = None,
         derived: Dict[str, Any] | None = None,
         divisionals: List[Any] | None = None,
+        rag_context: List[str] | None = None,
     ) -> Dict[str, Any]:
         """
         Generate an AI answer grounded in astrology facts.
@@ -108,7 +109,34 @@ class AIService:
         )
 
         # ─────────────────────────────────────────────
-        # 2. Call LLM
+        # 2. INJECT RAG CONTEXT
+        # ─────────────────────────────────────────────
+
+        if rag_context:
+            context_str = "\n\n".join(rag_context)
+            
+            # 👇 THIS IS THE "MAXIMUM USE" PROMPT 👇
+            additional_instructions = (
+                "\n\n🛑 IMPORTANT: SHASTRA REFERENCE (RAG DATA) 🛑\n"
+                "You have access to the following authentic Vedic scriptures (Shastras) retrieved specifically for this query:\n"
+                "--------------------------------------------------\n"
+                f"{context_str}\n"
+                "--------------------------------------------------\n"
+                "GUIDELINES FOR USING THIS CONTEXT:\n"
+                "1. PRIORITY: This context is your Primary Source of Truth. If it conflicts with general knowledge, follow this context.\n"
+                "2. CITATION: When you make a prediction based on these texts, mention the source (e.g., 'According to Phaladeepika...').\n"
+                "3. APPLICATION: Apply the specific rules found in the context to the planetary positions in the provided Kundali Chart.\n"
+                "4. ACCURACY: Do not hallucinate. If the context mentions a specific yoga or effect, quote it accurately.\n"
+            )
+            
+            # Append to System Prompt (giving it high importance)
+            prompt["system"] = prompt["system"] + additional_instructions
+            
+            # OPTIONAL: Uncomment this if you want to see the FULL prompt in logs
+            print(f"📜 [DEBUG] Final System Prompt:\n{prompt['system']}")
+
+        # ─────────────────────────────────────────────
+        # 3. Call LLM
         # ─────────────────────────────────────────────
 
         raw_response = await self.llm.complete(
@@ -117,7 +145,7 @@ class AIService:
         )
 
         # ─────────────────────────────────────────────
-        # 3. Guardrails
+        # 4. Guardrails
         # ─────────────────────────────────────────────
 
         safe_response = enforce_guardrails(
@@ -126,7 +154,7 @@ class AIService:
         )
 
         # ─────────────────────────────────────────────
-        # 4. Parse structured answer
+        # 5. Parse structured answer
         # ─────────────────────────────────────────────
 
         return parse_llm_response(safe_response)
