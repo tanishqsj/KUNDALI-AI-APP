@@ -24,7 +24,6 @@
                 <a href="index.html" class="hover:text-indigo-600 transition">Home</a>
                 <a href="create.html" class="hover:text-indigo-600 transition">Create</a>
                 <a href="ask.html" class="hover:text-indigo-600 transition">Ask AI</a>
-                <a href="voice.html" class="hover:text-indigo-600 transition">Voice</a>
                 <a href="report.html" class="text-indigo-600 border-b-2 border-indigo-600 pb-1">Reports</a>
             </div>
         </div>
@@ -48,10 +47,8 @@
                 </button>
             </div>
 
-            <!-- Birth Particulars -->
             <div id="birth-particulars" class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200"></div>
 
-            <!-- AI Predictions -->
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div class="flex flex-col md:flex-row md:items-center justify-between p-6 bg-slate-50 border-b border-slate-200 gap-4">
                     <div>
@@ -59,369 +56,181 @@
                         <p class="text-xs text-slate-500 mt-0.5">AI-generated insights from your planetary positions</p>
                     </div>
                     <div class="relative w-full md:w-72">
-                        <select id="topic-select" class="block w-full pl-4 pr-10 py-2 text-sm font-semibold border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl bg-white border transition-all cursor-pointer shadow-sm">
-                            <!-- Options populated dynamically -->
-                        </select>
+                        <select id="topic-select" class="block w-full pl-4 pr-10 py-2 text-sm font-semibold border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl bg-white border transition-all cursor-pointer shadow-sm"></select>
                     </div>
                 </div>
                 <div id="active-prediction-content" class="p-8 md:p-10 min-h-[400px]"></div>
             </div>
 
-            <!-- Visual Charts -->
             <div class="bg-white p-6 rounded-xl shadow-md">
                 <h2 class="text-2xl font-bold mb-4 text-slate-700 border-b pb-2">Visual Charts</h2>
                 <div id="visual-charts-container" class="grid grid-cols-1 md:grid-cols-2 gap-8"></div>
             </div>
 
-            <!-- Core Details -->
             <div class="bg-white p-6 rounded-xl shadow-md">
                 <h2 class="text-2xl font-bold mb-4 text-slate-700 border-b pb-2">Core Details</h2>
                 <div id="core-details" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
             </div>
             
-            <!-- Planetary Positions -->
             <div class="bg-white p-6 rounded-xl shadow-md">
                 <h2 class="text-2xl font-bold mb-4 text-slate-700 border-b pb-2">Planetary Positions</h2>
                 <div id="planets-table-container" class="overflow-x-auto"></div>
             </div>
 
-            <!-- Vimshottari Dasha -->
             <div class="bg-white p-6 rounded-xl shadow-md">
                 <h2 class="text-2xl font-bold mb-4 text-slate-700 border-b pb-2">Vimshottari Dasha</h2>
                 <div id="dasha-table-container" class="overflow-x-auto"></div>
             </div>
-
         </div>
     </div>
 
     <script>
-        // Global variable to store the report data
         let reportData = null;
-
-        const getApiBaseUrl = () => {
-            if (window.location.protocol === 'file:') return 'http://127.0.0.1:8000';
-            return '';
-        };
+        const getApiBaseUrl = () => window.location.protocol === 'file:' ? 'http://127.0.0.1:8000' : '';
         const API_BASE = getApiBaseUrl();
 
         const renderTable = (headers, data, keyOrder) => {
-            let table = '<table class="min-w-full divide-y divide-slate-100">';
-            table += '<thead class="bg-slate-50"><tr>';
-            headers.forEach(h => table += `<th scope="col" class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-widest">${h}</th>`);
+            let table = '<table class="min-w-full divide-y divide-slate-100"><thead class="bg-slate-50"><tr>';
+            headers.forEach(h => table += `<th class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-widest">${h}</th>`);
             table += '</tr></thead><tbody class="bg-white divide-y divide-slate-50">';
-
-            if (Array.isArray(data)) { // For arrays of objects
+            if (Array.isArray(data)) {
                 data.forEach(row => {
                     table += '<tr>';
                     keyOrder.forEach(key => table += `<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-700">${row[key] || '-'}</td>`);
                     table += '</tr>';
                 });
-            } else { // For an object of objects (like planets)
+            } else {
                  Object.entries(data).forEach(([name, row]) => {
-                    table += '<tr>';
-                    table += `<td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-800">${name}</td>`;
+                    table += '<tr><td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-800">' + name + '</td>';
                     keyOrder.forEach(key => {
                         let value = row[key];
                         if (typeof value === 'number') value = value.toFixed(2);
-                        if (key === 'retrograde' && value) value = 'Yes';
-                        else if (key === 'retrograde' && !value) value = 'No';
+                        if (key === 'retrograde') value = value ? 'Yes' : 'No';
                         table += `<td class="px-6 py-4 whitespace-nowrap text-sm text-slate-700">${value || '-'}</td>`
                     });
                     table += '</tr>';
                 });
             }
-            
-            table += '</tbody></table>';
-            return table;
+            return table + '</tbody></table>';
         };
 
         const renderKeyValue = (data) => {
             let html = '<dl class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">';
             for (const [key, value] of Object.entries(data)) {
-                html += `
-                    <div class="flex flex-col p-4 bg-slate-50 rounded-xl border border-slate-100">
-                        <dt class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</dt>
-                        <dd class="text-sm font-semibold text-slate-800">${value}</dd>
-                    </div>
-                `;
+                html += `<div class="flex flex-col p-4 bg-slate-50 rounded-xl border border-slate-100"><dt class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</dt><dd class="text-sm font-semibold text-slate-800">${value}</dd></div>`;
             }
-            html += '</dl>';
-            return html;
+            return html + '</dl>';
         };
 
         const formatAiText = (text) => {
-            if (!text) return '<p class="text-slate-400 italic">No data available for this section.</p>';
-            // Handle bolding **text**
+            if (!text) return '<p class="text-slate-400 italic">No data available.</p>';
             let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 font-extrabold">$1</strong>');
-            // Handle line breaks and bullets
             return formatted.split('\n').map(line => {
                 const trimmed = line.trim();
-                if (trimmed.startsWith('-')) return `<div class="flex items-start mb-3 ml-4"><span class="mr-3 text-indigo-500 font-bold">•</span><span class="text-slate-600">${trimmed.substring(1).trim()}</span></div>`;
+                if (trimmed.startsWith('-') || trimmed.startsWith('* ')) return `<div class="flex items-start mb-3 ml-4"><span class="mr-3 text-indigo-500 font-bold">•</span><span class="text-slate-600">${trimmed.substring(1).trim().replace(/^\*\s*/, '')}</span></div>`;
                 return trimmed ? `<p class="mb-5 text-slate-600 leading-relaxed text-base">${trimmed}</p>` : '<div class="h-2"></div>';
             }).join('');
         };
 
-        // --- Chart Rendering Logic (North Indian / Diamond Style) ---
         const signs = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
         const signMap = { "Aries": 1, "Taurus": 2, "Gemini": 3, "Cancer": 4, "Leo": 5, "Virgo": 6, "Libra": 7, "Scorpio": 8, "Sagittarius": 9, "Capricorn": 10, "Aquarius": 11, "Pisces": 12 };
 
-        const getHousesFromAscendant = (ascSign) => {
-            const startIdx = signs.indexOf(ascSign);
-            if (startIdx === -1) return {};
-            const houses = {};
-            for (let i = 0; i < 12; i++) {
-                houses[i + 1] = signs[(startIdx + i) % 12];
-            }
-            return houses;
-        };
-
         const drawNorthIndianChart = (containerId, houses, planets, title) => {
-            const size = 300;
-            const ns = "http://www.w3.org/2000/svg";
+            const size = 300, ns = "http://www.w3.org/2000/svg";
             const svg = document.createElementNS(ns, "svg");
             svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
             svg.setAttribute("class", "w-full h-auto border border-slate-100 bg-white rounded-2xl chart-svg");
-
-            // Draw Geometry (Diamond Style)
-            const lines = [
-                `0,0 ${size},${size}`, // Diagonal 1
-                `0,${size} ${size},0`, // Diagonal 2
-                `0,0 ${size},0 ${size},${size} 0,${size} 0,0`, // Outer Box
-                `${size/2},0 0,${size/2} ${size/2},${size} ${size},${size/2} ${size/2},0` // Inner Diamond
-            ];
-
-            lines.forEach(points => {
+            
+            [`0,0 ${size},${size}`, `0,${size} ${size},0`, `0,0 ${size},0 ${size},${size} 0,${size} 0,0`, `${size/2},0 0,${size/2} ${size/2},${size} ${size},${size/2} ${size/2},0`]
+            .forEach(pts => {
                 const poly = document.createElementNS(ns, "polyline");
-                poly.setAttribute("points", points);
-                poly.setAttribute("fill", "none");
-                poly.setAttribute("stroke", "#e2e8f0"); // slate-200
-                poly.setAttribute("stroke-width", "1");
+                poly.setAttribute("points", pts); poly.setAttribute("fill", "none"); poly.setAttribute("stroke", "#e2e8f0");
                 svg.appendChild(poly);
             });
 
-            // House Positions (Center coordinates for text)
-            // 1: Top Center, 2: Top Left, 3: Left Top, 4: Left Center, etc.
-            const pos = {
-                1:  [0.5, 0.20], 2:  [0.25, 0.08], 3:  [0.08, 0.25],
-                4:  [0.25, 0.5], 5:  [0.08, 0.75], 6:  [0.25, 0.92],
-                7:  [0.5, 0.80], 8:  [0.75, 0.92], 9:  [0.92, 0.75],
-                10: [0.75, 0.5], 11: [0.92, 0.25], 12: [0.75, 0.08]
-            };
-
-            // Group planets by house
+            const pos = { 1:[0.5, 0.20], 2:[0.25, 0.08], 3:[0.08, 0.25], 4:[0.25, 0.5], 5:[0.08, 0.75], 6:[0.25, 0.92], 7:[0.5, 0.80], 8:[0.75, 0.92], 9:[0.92, 0.75], 10:[0.75, 0.5], 11:[0.92, 0.25], 12:[0.75, 0.08] };
             const planetsByHouse = {};
             for(let i=1; i<=12; i++) planetsByHouse[i] = [];
-            
-            Object.entries(planets).forEach(([pName, pData]) => {
-                if (pData.house) {
-                    let label = pName.substring(0, 2);
-                    if (pData.retrograde) label += "(R)";
-                    planetsByHouse[pData.house].push(label);
-                }
-            });
+            Object.entries(planets).forEach(([pName, pData]) => { if (pData.house) planetsByHouse[pData.house].push(pName.substring(0,2) + (pData.retrograde ? "(R)" : "")); });
 
-            // Draw Text
             for (let h = 1; h <= 12; h++) {
-                const [fx, fy] = pos[h];
-                const cx = size * fx;
-                const cy = size * fy;
-
-                // Sign Number (Bold)
-                const signName = houses[h];
-                const signNum = signMap[signName] || "";
-                
+                const [cx, cy] = [size * pos[h][0], size * pos[h][1]];
                 const signText = document.createElementNS(ns, "text");
-                signText.setAttribute("x", cx);
-                signText.setAttribute("y", cy - 10); // Slightly above center
-                signText.setAttribute("text-anchor", "middle");
-                signText.setAttribute("font-weight", "800");
-                signText.setAttribute("font-size", "16");
-                signText.setAttribute("fill", "#6366f1"); // indigo-500
-                signText.textContent = signNum;
+                signText.setAttribute("x", cx); signText.setAttribute("y", cy - 10);
+                signText.setAttribute("text-anchor", "middle"); signText.setAttribute("font-weight", "800"); signText.setAttribute("fill", "#6366f1");
+                signText.textContent = signMap[houses[h]] || "";
                 svg.appendChild(signText);
-
-                // Planets (Below sign)
-                const pList = planetsByHouse[h];
-                if (pList.length > 0) {
-                    pList.forEach((p, idx) => {
-                        const pText = document.createElementNS(ns, "text");
-                        pText.setAttribute("x", cx);
-                        pText.setAttribute("y", cy + 5 + (idx * 10));
-                        pText.setAttribute("text-anchor", "middle");
-                        pText.setAttribute("font-size", "11");
-                        pText.setAttribute("fill", "#475569"); // slate-600
-                        pText.textContent = p;
-                        svg.appendChild(pText);
-                    });
-                }
+                
+                planetsByHouse[h].forEach((p, idx) => {
+                    const pText = document.createElementNS(ns, "text");
+                    pText.setAttribute("x", cx); pText.setAttribute("y", cy + 5 + (idx * 10));
+                    pText.setAttribute("text-anchor", "middle"); pText.setAttribute("font-size", "11"); pText.setAttribute("fill", "#475569");
+                    pText.textContent = p;
+                    svg.appendChild(pText);
+                });
             }
-
-            // Title
-            const titleEl = document.createElement("div");
-            titleEl.className = "text-center font-bold text-slate-500 text-sm mb-4 uppercase tracking-widest";
-            titleEl.textContent = title;
-
-            const wrapper = document.createElement("div");
-            wrapper.appendChild(titleEl);
-            wrapper.appendChild(svg);
             
+            const wrapper = document.createElement("div");
+            wrapper.innerHTML = `<div class="text-center font-bold text-slate-500 text-sm mb-4 uppercase tracking-widest">${title}</div>`;
+            wrapper.appendChild(svg);
             document.getElementById(containerId).appendChild(wrapper);
         };
 
-
         const loadReport = async () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const kundaliId = urlParams.get('id') || localStorage.getItem('kundali_core_id');
-
-            if (!kundaliId) {
-                document.getElementById('loading').innerHTML = '<p class="text-red-500">No Kundali ID found. Please create a kundali first.</p>';
-                return;
-            }
+            const kundaliId = new URLSearchParams(window.location.search).get('id') || localStorage.getItem('kundali_core_id');
+            if (!kundaliId) return document.getElementById('loading').innerHTML = '<p class="text-red-500">No ID found.</p>';
 
             try {
                 const res = await fetch(`${API_BASE}/api/v1/report/text?kundali_core_id=${kundaliId}&include_transits=true`);
-                if (!res.ok) throw new Error('Failed to fetch report data.');
-                
-                reportData = await res.json(); // Store data globally
+                if (!res.ok) throw new Error('Failed to fetch data');
+                reportData = await res.json();
 
-                // --- Render Birth Particulars ---
-                document.getElementById('birth-particulars').innerHTML = `
-                    <h2 class="text-xl font-bold mb-6 text-slate-800 flex items-center gap-2"><span class="text-indigo-500">👤</span> Profile: ${reportData.birth_details.name}</h2>
-                    ${renderKeyValue(reportData.birth_details)}
-                `;
+                document.getElementById('birth-particulars').innerHTML = `<h2 class="text-xl font-bold mb-6 text-slate-800 flex items-center gap-2"><span class="text-indigo-500">👤</span> Profile: ${reportData.birth_details.name}</h2>${renderKeyValue(reportData.birth_details)}`;
 
-                // --- Render AI Predictions ---
                 const topicSelect = document.getElementById('topic-select');
                 const contentArea = document.getElementById('active-prediction-content');
                 const sections = reportData.meta.sections || Object.keys(reportData.ai_predictions);
+                topicSelect.innerHTML = sections.map(t => `<option value="${t}">${t}</option>`).join('');
 
-                // Populate Dropdown
-                topicSelect.innerHTML = sections.map(topic => `<option value="${topic}">${topic}</option>`).join('');
-
-                const updateTopicView = (topic) => {
+                const updateTopic = (t) => {
                     contentArea.style.opacity = '0';
                     setTimeout(() => {
-                        contentArea.innerHTML = `
-                            <div class="animate-fade-in">
-                                <h3 class="text-2xl font-black text-slate-900 mb-8 flex items-center">
-                                    <span class="w-2 h-8 bg-indigo-600 rounded-full mr-4"></span>
-                                    ${topic}
-                                </h3>
-                                <div class="prose prose-slate max-w-none">${formatAiText(reportData.ai_predictions[topic])}</div>
-                            </div>
-                        `;
+                        contentArea.innerHTML = `<div class="animate-fade-in"><h3 class="text-2xl font-black text-slate-900 mb-8 flex items-center"><span class="w-2 h-8 bg-indigo-600 rounded-full mr-4"></span>${t}</h3><div class="prose prose-slate max-w-none">${formatAiText(reportData.ai_predictions[t])}</div></div>`;
                         contentArea.style.opacity = '1';
                     }, 150);
                 };
+                topicSelect.addEventListener('change', (e) => updateTopic(e.target.value));
+                if (sections.length) updateTopic(sections[0]);
 
-                topicSelect.addEventListener('change', (e) => updateTopicView(e.target.value));
+                document.getElementById('visual-charts-container').innerHTML = '';
+                if (reportData.persisted.core.houses) drawNorthIndianChart('visual-charts-container', reportData.persisted.core.houses, reportData.persisted.core.planets, "Lagna Chart (D1)");
                 
-                // Initial view
-                if (sections.length > 0) updateTopicView(sections[0]);
+                document.getElementById('core-details').innerHTML = renderKeyValue({ Ayanamsa: reportData.persisted.core.ayanamsa, Ascendant: `${reportData.persisted.core.ascendant.sign} (${reportData.persisted.core.ascendant.degree.toFixed(2)}°)` });
+                
+                document.getElementById('planets-table-container').innerHTML = renderTable(['Planet', 'Sign', 'Degree', 'House', 'Nakshatra', 'Retrograde'], reportData.persisted.core.planets, ['sign', 'degree', 'house', 'nakshatra', 'retrograde']);
+                
+                const formattedDashas = reportData.dashas.map(d => ({ ...d, start_date: d.start_date.split('T')[0], end_date: d.end_date.split('T')[0] }));
+                document.getElementById('dasha-table-container').innerHTML = renderTable(['Dasha Lord', 'Start', 'End', 'Duration'], formattedDashas, ['lord', 'start_date', 'end_date', 'duration_years']);
 
-                // --- Render Visual Charts ---
-                const chartsContainer = document.getElementById('visual-charts-container');
-                chartsContainer.innerHTML = ''; // Clear
-
-                // 1. Lagna Chart (D1)
-                if (reportData.persisted.core.houses && reportData.persisted.core.planets) {
-                    drawNorthIndianChart('visual-charts-container', reportData.persisted.core.houses, reportData.persisted.core.planets, "Lagna Chart (D1)");
-                }
-
-                // 2. Divisional Charts (D9, D10)
-                if (reportData.persisted.divisionals) {
-                    const divs = reportData.persisted.divisionals;
-                    
-                    // D9
-                    if (divs['D9'] && divs['D9'].ascendant) {
-                        const d9Houses = getHousesFromAscendant(divs['D9'].ascendant.sign);
-                        // Need to calculate house numbers for D9 planets relative to D9 ascendant
-                        // (Simplified: passing raw planets, drawNorthIndianChart expects 'house' property in planet data)
-                        // Note: The backend 'divisionals' data usually contains 'house' calculated for D9. 
-                        // If not, we rely on the fact that D9 planets in DB usually have 'sign', we need 'house'.
-                        // Let's assume for now the backend or logic provides it. If not, we might need client-side calc.
-                        // *Correction*: The PDF service calculates D9 houses on the fly. We should do the same here if 'house' is missing.
-                        
-                        // For simplicity in this snippet, we assume D9 planets have 'house' or we'd need a helper.
-                        // Actually, let's just render D9 if available.
-                        drawNorthIndianChart('visual-charts-container', d9Houses, divs['D9'].planets, "Navamsa Chart (D9)");
-                    }
-                }
-
-                // --- Render Core Details ---
-                const coreDetails = {
-                    Ayanamsa: reportData.persisted.core.ayanamsa,
-                    Ascendant: `${reportData.persisted.core.ascendant.sign} (${reportData.persisted.core.ascendant.degree.toFixed(2)}°)`
-                };
-                document.getElementById('core-details').innerHTML = renderKeyValue(coreDetails);
-
-                // --- Render Planets Table ---
-                const planetHeaders = ['Planet', 'Sign', 'Degree', 'House', 'Nakshatra', 'Retrograde'];
-                const planetKeyOrder = ['sign', 'degree', 'house', 'nakshatra', 'retrograde'];
-                document.getElementById('planets-table-container').innerHTML = renderTable(planetHeaders, reportData.persisted.core.planets, planetKeyOrder);
-
-                // --- Render Dasha Table ---
-                const dashaHeaders = ['Dasha Lord', 'Start Date', 'End Date', 'Duration (Yrs)'];
-                const dashaKeyOrder = ['lord', 'start_date', 'end_date', 'duration_years'];
-                const formattedDashas = reportData.dashas.map(d => ({
-                    ...d,
-                    start_date: d.start_date.split('T')[0],
-                    end_date: d.end_date.split('T')[0],
-                }));
-                document.getElementById('dasha-table-container').innerHTML = renderTable(dashaHeaders, formattedDashas, dashaKeyOrder);
-
-
-                // Show content
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('report-content').classList.remove('hidden');
-
-            } catch (error) {
-                console.error(error);
-                document.getElementById('loading').innerHTML = `<p class="text-red-500">Error: ${error.message}</p>`;
-            }
+            } catch (e) { document.getElementById('loading').innerHTML = `<p class="text-red-500">Error: ${e.message}</p>`; }
         };
 
         const downloadPdf = async () => {
             const btn = document.getElementById('downloadPdfBtn');
-            if (!reportData) {
-                alert('Report data is not loaded yet.');
-                return;
-            }
-            
-            btn.textContent = 'Generating PDF...';
-            btn.disabled = true;
-
+            if(!reportData) return;
+            btn.textContent = 'Generating...'; btn.disabled = true;
             try {
-                // We send the already-fetched data to the backend to render the PDF
-                const res = await fetch(`${API_BASE}/api/v1/report/pdf_from_data`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(reportData)
-                });
-
-                if (!res.ok) {
-                    const errorText = await res.text();
-                    throw new Error(`PDF generation failed: ${errorText}`);
-                }
-
+                const res = await fetch(`${API_BASE}/api/v1/report/pdf_from_data`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reportData) });
+                if (!res.ok) throw new Error(await res.text());
                 const blob = await res.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = `kundali-report-${reportData.birth_details.name.replace(/\s+/g, '-')}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                a.remove();
-
-            } catch (error) {
-                console.error('PDF Download Error:', error);
-                alert(`Error downloading PDF: ${error.message}`);
-            } finally {
-                btn.textContent = 'Download PDF';
-                btn.disabled = false;
-            }
+                const link = document.createElement('a');
+                link.href = window.URL.createObjectURL(blob);
+                link.download = `report-${reportData.birth_details.name}.pdf`;
+                link.click();
+            } catch (e) { alert(e.message); }
+            btn.textContent = 'Export as PDF'; btn.disabled = false;
         };
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -430,4 +239,4 @@
         });
     </script>
 </body>
-</html>
+</html> 

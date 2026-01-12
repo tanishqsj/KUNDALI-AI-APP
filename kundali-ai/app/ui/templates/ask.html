@@ -3,11 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ask AI</title>
+    <title>Ask AI Astrologer</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
+        .recording-pulse {
+            animation: pulse-red 1.5s infinite;
+        }
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        #chatBox::-webkit-scrollbar { width: 6px; }
+        #chatBox::-webkit-scrollbar-track { background: transparent; }
+        #chatBox::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col">
@@ -20,35 +31,50 @@
                 <a href="index.html" class="hover:text-indigo-600 transition">Home</a>
                 <a href="create.html" class="hover:text-indigo-600 transition">Create</a>
                 <a href="ask.html" class="text-indigo-600 border-b-2 border-indigo-600 pb-1">Ask AI</a>
-                <a href="voice.html" class="hover:text-indigo-600 transition">Voice</a>
                 <a href="report.html" class="hover:text-indigo-600 transition">Reports</a>
             </div>
         </div>
     </nav>
 
     <div class="container mx-auto mt-6 p-4 max-w-4xl flex-grow flex flex-col">
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex-grow flex flex-col h-[80vh]">
-            <!-- Header / ID Input -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex-grow flex flex-col h-[80vh] relative">
+            
             <div class="mb-4 border-b pb-4">
                 <div class="flex items-center gap-2">
                     <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Kundali ID:</label>
-                    <input type="text" id="kundaliId" class="w-full text-xs font-mono bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 text-slate-500" placeholder="Enter ID or create one first...">
+                    <input type="text" id="kundaliId" class="w-full text-xs font-mono bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 text-slate-500 transition" placeholder="Enter ID or create one first...">
                 </div>
             </div>
 
-            <!-- Chat Area -->
             <div id="chatBox" class="flex-grow overflow-y-auto p-4 space-y-6 bg-slate-50 rounded-xl mb-4 border border-slate-100">
                 <div class="text-center text-slate-400 text-sm mt-10">
-                    <p>👋 Hello! I am your AI Astrologer.</p>
-                    <p class="mt-2">Ask me about your career, health, or relationships.</p>
+                    <p class="text-2xl mb-2">👋</p>
+                    <p class="font-medium text-slate-500">I am your AI Astrologer.</p>
+                    <p class="mt-2 opacity-75">Type or speak your question below.</p>
                 </div>
             </div>
 
-            <!-- Input Area -->
-            <form id="askForm" class="flex gap-3">
-                <input type="text" id="question" class="flex-grow rounded-xl border border-slate-200 p-4 focus:ring-2 focus:ring-indigo-500 focus:outline-none shadow-sm bg-white" placeholder="e.g. How is my career this year?" required>
-                <button type="submit" class="bg-slate-900 text-white px-8 py-2 rounded-xl hover:bg-slate-800 transition font-bold shadow-md flex items-center">Send</button>
+            <form id="askForm" class="flex gap-2 items-center relative">
+                <input type="text" id="question" class="flex-grow rounded-xl border border-slate-200 p-4 pl-4 pr-12 focus:ring-2 focus:ring-indigo-500 focus:outline-none shadow-sm bg-white transition" placeholder="Ask about your future..." autocomplete="off">
+                
+                <button type="button" id="voiceBtn" class="bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800 p-4 rounded-xl transition-all duration-200 flex items-center justify-center border border-slate-200" title="Hold to Record">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                </button>
+
+                <button type="submit" class="bg-slate-900 text-white px-6 py-4 rounded-xl hover:bg-slate-800 transition font-bold shadow-md flex items-center gap-2">
+                    <span>Send</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                </button>
             </form>
+            
+            <div id="recordingStatus" class="hidden absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg items-center gap-2 recording-pulse z-10">
+                <span class="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                Listening... (Click mic to stop)
+            </div>
         </div>
     </div>
 
@@ -59,48 +85,114 @@
         };
         const API_BASE = getApiBaseUrl();
 
-        // Auto-load ID
         const storedId = localStorage.getItem('kundali_core_id');
         if (storedId) document.getElementById('kundaliId').value = storedId;
-
+        
         const chatBox = document.getElementById('chatBox');
+        const voiceBtn = document.getElementById('voiceBtn');
+        const statusBadge = document.getElementById('recordingStatus');
 
-        function appendMessage(role, text) {
+        // --- 1. Text Polisher Function ---
+        function formatAiText(text) {
+            if (!text) return '';
+            
+            // Bold: **text** -> <strong>text</strong>
+            let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-indigo-900">$1</strong>');
+            
+            // Italic: *text* -> <em>text</em>
+            formatted = formatted.replace(/\*(.*?)\*/g, '<em class="text-slate-600">$1</em>');
+
+            // Process lines for Lists & Paragraphs
+            return formatted.split('\n').map(line => {
+                const trimmed = line.trim();
+                
+                // Bullet Points
+                if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+                    return `<div class="flex items-start gap-2 mb-2 ml-1">
+                        <span class="text-indigo-500 font-bold mt-1">•</span>
+                        <span class="text-slate-700 leading-relaxed">${trimmed.replace(/^[\-\*]\s*/, '')}</span>
+                    </div>`;
+                }
+                
+                // Numbered Lists
+                if (/^\d+\./.test(trimmed)) {
+                    const number = trimmed.match(/^\d+\./)[0];
+                    return `<div class="flex items-start gap-2 mb-2 ml-1">
+                        <span class="font-bold text-slate-500 text-xs mt-1.5">${number}</span>
+                        <span class="text-slate-700 leading-relaxed">${trimmed.replace(/^\d+\.\s*/, '')}</span>
+                    </div>`;
+                }
+                
+                // Empty lines
+                if (!trimmed) return '<div class="h-3"></div>';
+                
+                // Regular Paragraphs
+                return `<p class="mb-2 text-slate-700 leading-relaxed">${trimmed}</p>`;
+            }).join('');
+        }
+
+        function appendMessage(role, text, audioBase64 = null) {
             const div = document.createElement('div');
-            div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+            div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in-up`;
             
             const bubble = document.createElement('div');
-            bubble.className = `max-w-[80%] md:max-w-[70%] px-5 py-3.5 rounded-2xl text-sm shadow-sm leading-relaxed ${
+            bubble.className = `max-w-[85%] md:max-w-[70%] px-5 py-3.5 rounded-2xl text-sm shadow-sm leading-relaxed ${
                 role === 'user' 
                 ? 'bg-indigo-600 text-white rounded-br-none' 
                 : 'bg-white border border-slate-200 text-slate-700 rounded-bl-none'
             }`;
             
-            // Simple formatting for line breaks
-            bubble.innerHTML = text.replace(/\n/g, '<br>');
+            // Apply formatting only if AI
+            let contentHtml = "";
+            if (role === 'ai') {
+                contentHtml = formatAiText(text);
+            } else {
+                contentHtml = `<p>${text.replace(/\n/g, '<br>')}</p>`;
+            }
             
+            if (audioBase64) {
+                const audioSrc = `data:audio/wav;base64,${audioBase64}`;
+                contentHtml += `
+                    <div class="mt-3 pt-2 border-t ${role === 'user' ? 'border-indigo-400/30' : 'border-slate-100'}">
+                        <p class="text-[10px] uppercase tracking-widest opacity-60 mb-1">Voice Note:</p>
+                        <audio controls src="${audioSrc}" class="w-full h-8 opacity-90 rounded-lg" style="filter: ${role === 'user' ? 'invert(1)' : 'none'};"></audio>
+                    </div>
+                `;
+            }
+            
+            bubble.innerHTML = contentHtml;
             div.appendChild(bubble);
             chatBox.appendChild(div);
+            setTimeout(() => chatBox.scrollTop = chatBox.scrollHeight, 100);
+        }
+
+        function showLoading() {
+            const div = document.createElement('div');
+            div.id = 'loadingIndicator';
+            div.className = 'text-xs text-slate-400 ml-2 animate-pulse flex items-center gap-1 mt-2';
+            div.innerHTML = '<span>✨</span> AI is analyzing...';
+            chatBox.appendChild(div);
             chatBox.scrollTop = chatBox.scrollHeight;
+            return div;
+        }
+
+        function hideLoading() {
+            const el = document.getElementById('loadingIndicator');
+            if(el) el.remove();
         }
 
         document.getElementById('askForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('kundaliId').value;
             const qInput = document.getElementById('question');
-            const q = qInput.value;
+            const q = qInput.value.trim();
 
             if (!id) return alert('Please enter a Kundali ID or create one first.');
+            if (!q) return;
 
             appendMessage('user', q);
             qInput.value = '';
-
-            // Show loading state
-            const loadingDiv = document.createElement('div');
-            loadingDiv.className = 'text-xs text-slate-400 ml-2 animate-pulse';
-            loadingDiv.innerText = 'AI is thinking...';
-            chatBox.appendChild(loadingDiv);
-            chatBox.scrollTop = chatBox.scrollHeight;
+            showLoading();
 
             try {
                 const res = await fetch(`${API_BASE}/api/v1/ask`, {
@@ -109,35 +201,83 @@
                     body: JSON.stringify({ kundali_core_id: id, question: q })
                 });
 
-                if (!res.ok) {
-                    const errText = await res.text();
-                    throw new Error(`Server returned ${res.status}: ${errText}`);
-                }
+                hideLoading();
 
-                chatBox.removeChild(loadingDiv); // Remove loading
-
+                if (!res.ok) throw new Error(await res.text());
                 const data = await res.json();
                 
-                let answerText = "I couldn't find an answer.";
-                
-                if (data.mode === 'ai' && data.answer && data.answer.text) {
-                    answerText = data.answer.text;
-                } else if (data.mode === 'rules') {
-                    // Fallback for rules mode if AI didn't trigger
-                    answerText = "I found some astrological rules matching your query, but I couldn't synthesize a full answer. (Mode: Rules)";
-                    console.log("Rules:", data.explanations);
-                }
-                
+                let answerText = data.mode === 'ai' ? data.answer.text : "I found matching rules but couldn't generate a story.";
                 appendMessage('ai', answerText);
+
             } catch (err) {
-                if(loadingDiv.parentNode) chatBox.removeChild(loadingDiv);
-                let msg = err.message;
-                if (msg === 'Failed to fetch') {
-                    msg += ' (Check backend/CORS)';
-                }
-                appendMessage('ai', '⚠️ Error: ' + msg);
+                hideLoading();
+                appendMessage('ai', '⚠️ Error: ' + err.message);
             }
         });
+
+        // Voice Logic
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+
+        voiceBtn.addEventListener('click', async () => {
+            const id = document.getElementById('kundaliId').value;
+            if (!id) return alert('Please enter a Kundali ID first.');
+
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
+                    
+                    mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        processAudio(audioBlob, id);
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+
+                    mediaRecorder.start();
+                    isRecording = true;
+                    
+                    voiceBtn.classList.add('bg-red-50', 'text-red-500', 'border-red-200');
+                    voiceBtn.innerHTML = `<div class="w-3 h-3 bg-red-500 rounded-sm"></div>`;
+                    statusBadge.classList.remove('hidden');
+                    statusBadge.classList.add('flex');
+
+                } catch (err) {
+                    alert("Microphone access denied: " + err.message);
+                }
+            } else {
+                mediaRecorder.stop();
+                isRecording = false;
+                voiceBtn.classList.remove('bg-red-50', 'text-red-500', 'border-red-200');
+                voiceBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>`;
+                statusBadge.classList.add('hidden');
+                statusBadge.classList.remove('flex');
+            }
+        });
+
+        async function processAudio(blob, id) {
+            const loadingMsg = showLoading();
+            loadingMsg.innerHTML = '<span>🎙️</span> Processing voice...';
+            const formData = new FormData();
+            formData.append('audio', blob, 'recording.wav');
+
+            try {
+                const res = await fetch(`${API_BASE}/api/v1/voice?kundali_core_id=${id}`, { method: 'POST', body: formData });
+                hideLoading();
+                if (!res.ok) throw new Error(await res.text());
+                const data = await res.json();
+
+                appendMessage('user', data.question_text || "(Voice Message)", data.audio_bytes);
+                setTimeout(() => { appendMessage('ai', data.answer_text); }, 500);
+
+            } catch (err) {
+                hideLoading();
+                appendMessage('ai', '⚠️ Voice Error: ' + err.message);
+            }
+        }
     </script>
 </body>
 </html>
