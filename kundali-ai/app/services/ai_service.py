@@ -36,6 +36,7 @@ class AIService:
         derived: Dict[str, Any] | None = None,
         divisionals: List[Any] | None = None,
         rag_context: List[str] | None = None,
+        language: str = "English",  # <--- NEW PARAMETER
     ) -> Dict[str, Any]:
         """
         Generate an AI answer grounded in astrology facts.
@@ -133,7 +134,19 @@ class AIService:
             prompt["system"] = prompt["system"] + additional_instructions
             
             # OPTIONAL: Uncomment this if you want to see the FULL prompt in logs
-            print(f"📜 [DEBUG] Final System Prompt:\n{prompt['system']}")
+            # print(f"📜 [DEBUG] Final System Prompt:\n{prompt['system']}")
+
+        # ─────────────────────────────────────────────
+        # 2.5 INJECT LANGUAGE INSTRUCTION
+        # ─────────────────────────────────────────────
+        if language and language.lower() != "english":
+            language_instruction = (
+                f"\n\n🌍 **LANGUAGE REQUIREMENT** 🌍\n"
+                f"You MUST generate the entire response in **{language}** language.\n"
+                f"Do not just translate; write naturally in {language} as an astrologer would speak.\n"
+                f"Keep astrological terms (like 'Dasha', 'Lagna') in their original Sanskrit form if appropriate for {language}."
+            )
+            prompt["system"] = prompt["system"] + language_instruction
 
         # ─────────────────────────────────────────────
         # 3. Call LLM

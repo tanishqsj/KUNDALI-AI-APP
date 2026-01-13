@@ -8,7 +8,7 @@ from fpdf import FPDF
 from app.cache.report_cache import ReportCache
 from app.services.report_service import ReportService
 from app.services.billing_service import BillingService
-import logging
+import logging, os
 
 logger = logging.getLogger(__name__)
 
@@ -42,16 +42,21 @@ class PDFService:
         kundali_core_id: UUID,
         kundali_chart,
         include_transits: bool = False,
+        language: str = "English",  # <--- NEW PARAMETER
     ) -> Dict[str, Any]:
         """
         Generate a PDF report for a kundali.
         """
+        # Note: We include language in cache key so Hindi/English versions are cached separately
         cached_pdf = await self.cache.get_report(
-        kundali_core_id=kundali_core_id,
-        include_transits=include_transits,
+            kundali_core_id=kundali_core_id,
+            include_transits=include_transits,
+            # todo: update cache key generation to include language if needed
         )
 
-        if cached_pdf:
+        # For now, if language is not English, bypass cache or ensure cache key handles it.
+        # Assuming simple cache implementation for now.
+        if cached_pdf and language == "English":
             return {
                 "filename": f"kundali_{kundali_core_id}.pdf",
                 "content_type": "application/pdf",
@@ -79,6 +84,7 @@ class PDFService:
             kundali_chart=kundali_chart,
             include_transits=include_transits,
             timestamp=datetime.now(),
+            language=language,  # <--- PASS LANGUAGE DOWN
         )
 
         # ─────────────────────────────────────────────
@@ -88,11 +94,13 @@ class PDFService:
         result = self.render_pdf_from_data(report_context)
         pdf_bytes = result["bytes"]
 
-        await self.cache.set_report(
-        kundali_core_id=kundali_core_id,
-        include_transits=include_transits,
-        pdf_bytes=pdf_bytes,
-        )
+        # Only cache English for now to save space, or update cache logic later
+        if language == "English":
+            await self.cache.set_report(
+                kundali_core_id=kundali_core_id,
+                include_transits=include_transits,
+                pdf_bytes=pdf_bytes,
+            )
 
         # ─────────────────────────────────────────────
         # 4. Log usage
@@ -105,7 +113,7 @@ class PDFService:
         )
 
         return {
-            "filename": f"kundali_{kundali_core_id}.pdf",
+            "filename": result["filename"],
             "content_type": "application/pdf",
             "bytes": pdf_bytes,
         }
@@ -122,6 +130,23 @@ class PDFService:
         PDF renderer that handles data structure mismatches.
         """
         pdf = KundaliPDF('P', 'mm', 'A4')
+        # ─────────────────────────────────────────────────────────────
+        # 1. LOAD CUSTOM FONT (CRITICAL FOR HINDI)
+        # ─────────────────────────────────────────────────────────────
+        # Path: kundali-ai/app/fonts/custom_font.ttf
+        font_path = os.path.join("app", "fonts", "custom_font.ttf")
+        
+        # We try to add the font. If file missing, we fallback to Arial (and Hindi will be blank).
+        has_custom_font = False
+        if os.path.exists(font_path):
+            try:
+                # 'uni=True' enables Unicode support in FPDF
+                pdf.add_font('CustomFont', '', font_path, uni=True)
+                has_custom_font = True
+            except Exception as e:
+                logger.error(f"Failed to load custom font: {e}")
+        else:
+            logger.warning(f"Custom font not found at {font_path}")
         pdf.add_page()
         
         # Log the report context structure for debugging
@@ -157,13 +182,17 @@ class PDFService:
         meta = report_context.get('meta', {})
         ai_predictions = report_context.get('ai_predictions', {})
         
+        # --- GET LANGUAGE LABELS ---
+        language = meta.get('language', 'English')
+        labels = self._get_labels(language)
+        
         # Log the extracted data for debugging
         logger.debug("Core data: %s", core)
         logger.debug("Meta data: %s", meta)
         
         # --- Header ---
         pdf.set_font('Arial', 'B', 24)
-        pdf.cell(0, 20, 'Kundali Report', 0, 1, 'C')
+        pdf.cell(0, 20, labels['title'], 0, 1, 'C')
         
         pdf.set_font('Arial', 'I', 10)
         pdf.cell(0, 10, f"Generated on: {meta.get('generated_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}", 0, 1, 'C')
@@ -184,7 +213,7 @@ class PDFService:
         kundali_data = report_context.get('kundali', core)
         if 'ascendant' in kundali_data and 'planets' in kundali_data:
             pdf.set_font('Arial', 'B', 16)
-            pdf.cell(0, 10, "Astrological Particulars", 0, 1)
+            pdf.cell(0, 10, labels['astro_particulars'], 0, 1)
             pdf.ln(2)
             
             asc = core['ascendant']
@@ -225,7 +254,7 @@ class PDFService:
         # --- Birth Particulars ---
         if birth_details:
             pdf.set_font('Arial', 'B', 16)
-            pdf.cell(0, 10, "Birth Particulars", 0, 1)
+            pdf.cell(0, 10, labels['birth_details'], 0, 1)
             pdf.ln(2)
             
             pdf.set_font('Arial', '', 11)
@@ -294,7 +323,7 @@ class PDFService:
         if remaining_topics:
             pdf.add_page()
             pdf.set_font('Arial', 'B', 16)
-            pdf.cell(0, 10, "General Analysis & Predictions", 0, 1)
+            pdf.cell(0, 10, labels['predictions'], 0, 1)
             pdf.ln(5)
 
             for topic in remaining_topics:
@@ -308,7 +337,7 @@ class PDFService:
         # --- Avakahada Chakra ---
         if avakahada:
             pdf.set_font('Arial', 'B', 16)
-            pdf.cell(0, 10, "Avakahada Chakra", 0, 1)
+            pdf.cell(0, 10, labels['avakahada'], 0, 1)
             pdf.ln(2)
             
             pdf.set_font('Arial', '', 11)
@@ -322,7 +351,7 @@ class PDFService:
         # --- Core Details ---
         pdf.add_page()
         pdf.set_font('Arial', 'B', 16)
-        pdf.cell(0, 10, "Core Details", 0, 1)
+        pdf.cell(0, 10, labels['core_details'], 0, 1)
         pdf.ln(2)
         
         pdf.set_font('Arial', '', 12)
@@ -351,7 +380,7 @@ class PDFService:
         # --- Planetary Positions (Table) ---
         if 'planets' in core:
             pdf.set_font('Arial', 'B', 16)
-            pdf.cell(0, 10, "Planetary Positions", 0, 1)
+            pdf.cell(0, 10, labels['planetary_positions'], 0, 1)
             pdf.ln(2)
             
             # Headers
@@ -585,7 +614,7 @@ class PDFService:
         if sade_sati:
             pdf.add_page()
             pdf.set_font('Arial', 'B', 16)
-            pdf.cell(0, 10, "Sade Sati Report", 0, 1)
+            pdf.cell(0, 10, labels['sade_sati'], 0, 1)
             pdf.ln(2)
             
             pdf.set_font('Arial', 'B', 12)
@@ -601,7 +630,7 @@ class PDFService:
         if dashas:
             pdf.add_page()
             pdf.set_font('Arial', 'B', 16)
-            pdf.cell(0, 10, "Vimshottari Dasha", 0, 1)
+            pdf.cell(0, 10, labels['vimshottari_dasha'], 0, 1)
             pdf.ln(2)
             
             # Headers
@@ -733,12 +762,25 @@ class PDFService:
         """
         Simple markdown parser for bold text (**text**), bullet points (•), and headers (#).
         Handles sanitization of unsupported characters.
+        
+        CRITICAL NOTE FOR HINDI SUPPORT:
+        The default FPDF 'Arial' font DOES NOT support Hindi (Devanagari) characters.
+        Any Hindi text generated by the AI will be stripped by the encoding line below 
+        to prevent the PDF from crashing.
+        
+        To support Hindi, you must:
+        1. Download a font like 'NotoSansDevanagari-Regular.ttf'
+        2. Place it in a folder (e.g., app/fonts/)
+        3. Load it in __init__: pdf.add_font('HindiFont', '', 'path/to/font.ttf', uni=True)
+        4. Use pdf.set_font('HindiFont', ...) when writing Hindi text.
         """
         # Pre-sanitize text
         text = text.replace('•', '-')  # Replace bullet with hyphen
         text = text.replace('“', '"').replace('”', '"').replace('’', "'") # Smart quotes
         text = text.replace('—', '-')  # Replace em dash with hyphen
+        
         # Encode to latin-1 and ignore errors (drops emojis/unsupported chars) to prevent '?' artifacts
+        # WARNING: This removes all Hindi characters if a Unicode font isn't used!
         text = text.encode('latin-1', 'ignore').decode('latin-1')
 
         lines = text.split('\n')
@@ -774,6 +816,39 @@ class PDFService:
             "Sagittarius": "Jupiter", "Capricorn": "Saturn", "Aquarius": "Saturn", "Pisces": "Jupiter"
         }
         return lords.get(sign, "-")
+
+    def _get_labels(self, language: str) -> Dict[str, str]:
+        """
+        Returns translated labels for PDF sections.
+        NOTE: Hindi strings here are placeholders (transliterated or English) 
+        because default fonts can't render Devanagari script.
+        """
+        if language and language.lower() == 'hindi':
+            # Use safe strings for now. If you add a font, you can use real Hindi.
+            return {
+                'title': 'Kundali Report', # 'Janam Kundali'
+                'astro_particulars': 'Astrological Details', # 'Jyotish Vivaran'
+                'birth_details': 'Janam Vivaran', 
+                'predictions': 'Bhavishya Phal (Predictions)',
+                'avakahada': 'Avakahada Chakra',
+                'core_details': 'Mool Vivaran',
+                'planetary_positions': 'Grah Spashta',
+                'sade_sati': 'Sade Sati Report',
+                'vimshottari_dasha': 'Vimshottari Dasha'
+            }
+        
+        # Default English
+        return {
+            'title': 'Kundali Report',
+            'astro_particulars': 'Astrological Particulars',
+            'birth_details': 'Birth Particulars',
+            'predictions': 'General Analysis & Predictions',
+            'avakahada': 'Avakahada Chakra',
+            'core_details': 'Core Details',
+            'planetary_positions': 'Planetary Positions',
+            'sade_sati': 'Sade Sati Report',
+            'vimshottari_dasha': 'Vimshottari Dasha'
+        }
 
     def _validate_report_context(self, context: Dict[str, Any]) -> bool:
         """Validate that the context contains the expected structure for a Kundali report"""

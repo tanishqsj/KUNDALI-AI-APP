@@ -38,6 +38,7 @@ class ReportService:
         kundali_chart,
         include_transits: bool = False,
         timestamp: Optional[datetime] = None,
+        language: str = "English",  # <--- NEW PARAMETER
     ) -> Dict[str, Any]:
 
         birth_repo = BirthProfileRepository(session)
@@ -266,9 +267,20 @@ class ReportService:
             prediction_topics["Transits & Gochar"] = "How are the current planetary transits (Gochar) impacting me right now?"
 
         async def get_prediction(topic, question):
+            # INJECT LANGUAGE INSTRUCTION
+            # This ensures the prompt explicitly asks for the specific language
+            language_instruction = ""
+            if language and language.lower() != "english":
+                language_instruction = (
+                    f"\n\n🌍 **LANGUAGE REQUIREMENT** 🌍\n"
+                    f"You MUST generate the entire response in **{language}** language.\n"
+                    f"Do not just translate; write naturally in {language} as an astrologer would speak."
+                )
+
             # Append formatting instructions to ensure clean output
             formatted_question = (
-                f"{question}\n\n"
+                f"{question}\n"
+                f"{language_instruction}\n\n"
                 f"Context: Ascendant is {asc_sign}, Moon is in {moon.sign}. Current Period: {current_dasha_name}.\n"
                 "Style Instructions:\n"
                 "1. Use standard hyphens (-) for bullet points. Do NOT use special bullet characters or emojis.\n"
@@ -279,13 +291,16 @@ class ReportService:
                 "6. Separate sections with double newlines.\n"
                 "7. Do NOT use markdown headers (like #, ##, ###). Use **Bold** for section headings."
             )
+            
             ai_answer = await self.ai_service.answer(
                 user_id=user_id,
                 question=formatted_question,
                 kundali_chart=kundali_chart,
                 explanations=explanations,
                 transits=transits_payload,
+                language=language,  # <--- PASS LANGUAGE TO AI SERVICE
             )
+            
             # Safely extract text, default to an empty string if keys are missing
             answer_text = ai_answer.get('text', 'Could not generate prediction for this topic.')
             
@@ -337,6 +352,7 @@ class ReportService:
                 "generated_at": datetime.utcnow().isoformat(),
                 "include_transits": include_transits,
                 "sections": list(ordered_predictions.keys()),
+                "language": language,  # <--- INCLUDE LANGUAGE IN META
             },
             "birth_details": {
                 "name": birth_profile.name,

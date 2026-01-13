@@ -17,12 +17,12 @@ router = APIRouter()
 async def get_pdf_report(
     kundali_core_id: UUID,
     include_transits: bool = False,
+    language: str = "English",
     session: AsyncSession = Depends(get_db_session),
 ):
     """
     Generate and download a PDF report for a specific Kundali.
     """
-    # 1. Validate Kundali existence
     repo = KundaliCoreRepository(session)
     kundali_core = await repo.get_by_id(kundali_core_id)
     
@@ -78,6 +78,7 @@ async def post_pdf_from_data(report_context: dict):
 async def get_text_report(
     kundali_core_id: UUID,
     include_transits: bool = False,
+    language: str = "English",
     session: AsyncSession = Depends(get_db_session),
 ):
     """
@@ -102,6 +103,7 @@ async def get_text_report(
         kundali_chart=kundali_chart,
         include_transits=include_transits,
         timestamp=datetime.now(timezone.utc),
+        language=language
     )
 
     return _strip_markdown(report_context)
