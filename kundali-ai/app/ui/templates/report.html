@@ -204,12 +204,58 @@
             document.getElementById(containerId).appendChild(wrapper);
         };
 
+        const renderReportUI = (data) => {
+            document.getElementById('birth-particulars').innerHTML = `<h2 class="text-xl font-bold mb-6 text-slate-800 flex items-center gap-2"><span class="text-indigo-500">👤</span> Profile: ${data.birth_details.name}</h2>${renderKeyValue(data.birth_details)}`;
+
+            const topicSelect = document.getElementById('topic-select');
+            const contentArea = document.getElementById('active-prediction-content');
+            const sections = data.meta.sections || Object.keys(data.ai_predictions);
+            topicSelect.innerHTML = sections.map(t => `<option value="${t}">${t}</option>`).join('');
+
+            const updateTopic = (t) => {
+                contentArea.style.opacity = '0';
+                setTimeout(() => {
+                    contentArea.innerHTML = `<div class="animate-fade-in"><h3 class="text-2xl font-black text-slate-900 mb-8 flex items-center"><span class="w-2 h-8 bg-indigo-600 rounded-full mr-4"></span>${t}</h3><div class="prose prose-slate max-w-none">${formatAiText(data.ai_predictions[t])}</div></div>`;
+                    contentArea.style.opacity = '1';
+                }, 150);
+            };
+            topicSelect.onchange = (e) => updateTopic(e.target.value);
+            if (sections.length) updateTopic(sections[0]);
+
+            document.getElementById('visual-charts-container').innerHTML = '';
+            if (data.persisted.core.houses) drawNorthIndianChart('visual-charts-container', data.persisted.core.houses, data.persisted.core.planets, "Lagna Chart (D1)");
+            
+            document.getElementById('core-details').innerHTML = renderKeyValue({ Ayanamsa: data.persisted.core.ayanamsa, Ascendant: `${data.persisted.core.ascendant.sign} (${data.persisted.core.ascendant.degree.toFixed(2)}°)` });
+            
+            document.getElementById('planets-table-container').innerHTML = renderTable(['Planet', 'Sign', 'Degree', 'House', 'Nakshatra', 'Retrograde'], data.persisted.core.planets, ['sign', 'degree', 'house', 'nakshatra', 'retrograde']);
+            
+            const formattedDashas = data.dashas.map(d => ({ ...d, start_date: d.start_date.split('T')[0], end_date: d.end_date.split('T')[0] }));
+            document.getElementById('dasha-table-container').innerHTML = renderTable(['Dasha Lord', 'Start', 'End', 'Duration'], formattedDashas, ['lord', 'start_date', 'end_date', 'duration_years']);
+
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('report-content').classList.remove('hidden');
+        };
+
         const loadReport = async (language = 'English') => {
             currentLanguage = language;
             const kundaliId = new URLSearchParams(window.location.search).get('id') || localStorage.getItem('kundali_core_id');
             if (!kundaliId) return document.getElementById('loading').innerHTML = '<p class="text-red-500">No Kundali ID found.</p>';
 
-            // Show loading when language changes
+            const cacheKey = `kundali_report_${kundaliId}_${language}`;
+            const cached = sessionStorage.getItem(cacheKey);
+
+            if (cached) {
+                try {
+                    reportData = JSON.parse(cached);
+                    renderReportUI(reportData);
+                    return;
+                } catch (e) {
+                    console.warn("Cache parse error", e);
+                    sessionStorage.removeItem(cacheKey);
+                }
+            }
+
+            // Show loading when language changes or not cached
             document.getElementById('loading').classList.remove('hidden');
             document.getElementById('report-content').classList.add('hidden');
 
@@ -217,36 +263,12 @@
                 const res = await fetch(`${API_BASE}/api/v1/report/text?kundali_core_id=${kundaliId}&include_transits=true&language=${language}`);
                 if (!res.ok) throw new Error('Failed to fetch data');
                 reportData = await res.json();
-
-                document.getElementById('birth-particulars').innerHTML = `<h2 class="text-xl font-bold mb-6 text-slate-800 flex items-center gap-2"><span class="text-indigo-500">👤</span> Profile: ${reportData.birth_details.name}</h2>${renderKeyValue(reportData.birth_details)}`;
-
-                const topicSelect = document.getElementById('topic-select');
-                const contentArea = document.getElementById('active-prediction-content');
-                const sections = reportData.meta.sections || Object.keys(reportData.ai_predictions);
-                topicSelect.innerHTML = sections.map(t => `<option value="${t}">${t}</option>`).join('');
-
-                const updateTopic = (t) => {
-                    contentArea.style.opacity = '0';
-                    setTimeout(() => {
-                        contentArea.innerHTML = `<div class="animate-fade-in"><h3 class="text-2xl font-black text-slate-900 mb-8 flex items-center"><span class="w-2 h-8 bg-indigo-600 rounded-full mr-4"></span>${t}</h3><div class="prose prose-slate max-w-none">${formatAiText(reportData.ai_predictions[t])}</div></div>`;
-                        contentArea.style.opacity = '1';
-                    }, 150);
-                };
-                topicSelect.addEventListener('change', (e) => updateTopic(e.target.value));
-                if (sections.length) updateTopic(sections[0]);
-
-                document.getElementById('visual-charts-container').innerHTML = '';
-                if (reportData.persisted.core.houses) drawNorthIndianChart('visual-charts-container', reportData.persisted.core.houses, reportData.persisted.core.planets, "Lagna Chart (D1)");
                 
-                document.getElementById('core-details').innerHTML = renderKeyValue({ Ayanamsa: reportData.persisted.core.ayanamsa, Ascendant: `${reportData.persisted.core.ascendant.sign} (${reportData.persisted.core.ascendant.degree.toFixed(2)}°)` });
-                
-                document.getElementById('planets-table-container').innerHTML = renderTable(['Planet', 'Sign', 'Degree', 'House', 'Nakshatra', 'Retrograde'], reportData.persisted.core.planets, ['sign', 'degree', 'house', 'nakshatra', 'retrograde']);
-                
-                const formattedDashas = reportData.dashas.map(d => ({ ...d, start_date: d.start_date.split('T')[0], end_date: d.end_date.split('T')[0] }));
-                document.getElementById('dasha-table-container').innerHTML = renderTable(['Dasha Lord', 'Start', 'End', 'Duration'], formattedDashas, ['lord', 'start_date', 'end_date', 'duration_years']);
+                try {
+                    sessionStorage.setItem(cacheKey, JSON.stringify(reportData));
+                } catch (e) { console.warn("Quota exceeded or storage error", e); }
 
-                document.getElementById('loading').classList.add('hidden');
-                document.getElementById('report-content').classList.remove('hidden');
+                renderReportUI(reportData);
             } catch (e) { document.getElementById('loading').innerHTML = `<p class="text-red-500">Error: ${e.message}</p>`; }
         };
 
