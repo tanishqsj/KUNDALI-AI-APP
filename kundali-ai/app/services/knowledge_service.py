@@ -12,7 +12,7 @@ class KnowledgeService:
         self, 
         session: AsyncSession, 
         query: str, 
-        limit: int = 3
+        limit: int = 5
     ) -> List[str]:
         # 1. Log the attempt
         print(f"\n🔎 [RAG] Searching knowledge for: '{query}'")

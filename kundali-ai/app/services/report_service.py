@@ -15,6 +15,7 @@ from app.services.rule_service import RuleService
 from app.services.explanation_service import ExplanationService
 from app.services.transit_service import TransitService
 from app.services.ai_service import AIService
+from app.services.knowledge_service import KnowledgeService
 
 
 class ReportService:
@@ -27,6 +28,7 @@ class ReportService:
         self.explanation_service = ExplanationService()
         self.transit_service = TransitService()
         self.ai_service = AIService()
+        self.knowledge_service = KnowledgeService()
         self.calculator = KundaliCalculator()
 
     async def build_report_context(
@@ -266,7 +268,79 @@ class ReportService:
         if include_transits:
             prediction_topics["Transits & Gochar"] = "How are the current planetary transits (Gochar) impacting me right now?"
 
+        def _build_contextual_query(topic, question, chart):
+            """
+            Builds a specific query string for the Knowledge Base tailored to the chart.
+            """
+            # 1. Define Significators for each Topic
+            topic_map = {
+                "Career": {"houses": [1, 6, 10], "planets": ["Saturn", "Sun", "Mercury", "Jupiter"]},
+                "Finance": {"houses": [2, 11, 9], "planets": ["Jupiter", "Venus", "Mercury"]},
+                "Wealth": {"houses": [2, 11], "planets": ["Jupiter", "Venus"]},
+                "Relationships": {"houses": [7], "planets": ["Venus", "Jupiter", "Mars"]},
+                "Marriage": {"houses": [7], "planets": ["Venus", "Jupiter"]},
+                "Health": {"houses": [1, 6, 8, 12], "planets": ["Sun", "Moon", "Mars", "Saturn"]},
+                "Education": {"houses": [4, 5, 9], "planets": ["Mercury", "Jupiter"]},
+                "Spirituality": {"houses": [9, 12], "planets": ["Jupiter", "Ketu", "Saturn"]},
+                "Ascendant": {"houses": [1], "planets": ["Sun"]}, # Sun is general soul/body
+            }
+
+            # Normalize topic key
+            key = None
+            for k in topic_map:
+                if k.lower() in topic.lower() or k.lower() in question.lower():
+                    key = k
+                    break
+            
+            # Default if no specific topic found
+            if not key:
+                return f"Astrology rules for {topic} {question}"
+
+            config = topic_map[key]
+            
+            # 2. Extract Chart Details
+            query_parts = [f"Astrology rules results for {key}"]
+            
+            # Function to find planets in a specific house
+            def get_planets_in_house(h_num):
+                return [name for name, p in chart.planets.items() if p.house == h_num]
+
+            # A. Check Planets in Relevant Houses
+            for h in config["houses"]:
+                planets_in_h = get_planets_in_house(h)
+                if planets_in_h:
+                    p_str = ", ".join(planets_in_h)
+                    query_parts.append(f"planets in {h}th house {p_str}")
+            
+            # B. Check Specific Significator Planets
+            for p_name in config["planets"]:
+                if p_name in chart.planets:
+                    p_obj = chart.planets[p_name]
+                    query_parts.append(f"{p_name} in {p_obj.sign} in {p_obj.house}th house")
+
+            # C. Add Ascendant Sign context
+            query_parts.append(f"Ascendant {chart.ascendant.sign}")
+
+            return " ".join(query_parts)
+
         async def get_prediction(topic, question):
+            # ─────────────────────────────────────────────
+            # 0. Retrieve RAG Context (Knowledge Base)
+            # ─────────────────────────────────────────────
+            
+            # Use the new Smart Query Builder
+            search_query = _build_contextual_query(topic, question, kundali_chart)
+            
+            try:
+                rag_context = await self.knowledge_service.retrieve_context(
+                    session=session,
+                    query=search_query,
+                    limit=5 
+                )
+            except Exception as e:
+                print(f"⚠️ [RAG] Failed to retrieve context for '{topic}': {e}")
+                rag_context = []
+
             # INJECT LANGUAGE INSTRUCTION
             # This ensures the prompt explicitly asks for the specific language
             language_instruction = ""
@@ -298,6 +372,7 @@ class ReportService:
                 kundali_chart=kundali_chart,
                 explanations=explanations,
                 transits=transits_payload,
+                rag_context=rag_context, # <--- PASS RAG CONTEXT
                 language=language,  # <--- PASS LANGUAGE TO AI SERVICE
             )
             

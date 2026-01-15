@@ -154,7 +154,7 @@ class QueryRouter:
             rag_context = await self.knowledge_service.retrieve_context(
                 session=session, 
                 query=question, 
-                limit=3
+                limit=5
             )
 
         if intent["needs_ai"]:

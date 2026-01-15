@@ -21,7 +21,7 @@ class KnowledgeRepository(BaseRepository[KnowledgeItem]):
     async def search_similar(
         self, 
         embedding_vector: List[float], 
-        limit: int = 3
+        limit: int = 5
     ) -> Sequence[KnowledgeItem]:
         """
         Find items semantically similar to the query vector
