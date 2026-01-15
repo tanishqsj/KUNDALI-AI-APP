@@ -149,6 +149,21 @@ class AIService:
             prompt["system"] = prompt["system"] + language_instruction
 
         # ─────────────────────────────────────────────
+        # 2.6 INJECT SUGGESTION INSTRUCTION
+        # ─────────────────────────────────────────────
+        suggestion_instruction = (
+            "\n\n🔮 **FOLLOW-UP SUGGESTIONS** 🔮\n"
+            "At the very end of your response, strictly purely append a list of 3 short, relevant follow-up questions "
+            "that the user might want to ask next based on your analysis.\n"
+            "Use this EXACT format:\n"
+            "|||SUGGESTIONS: <Question 1>|<Question 2>|<Question 3>\n"
+            "Example:\n"
+            "...end of answer.\n"
+            "|||SUGGESTIONS: When will I get married?|Is my health okay?|Gemstone for luck?"
+        )
+        prompt["system"] = prompt["system"] + suggestion_instruction
+
+        # ─────────────────────────────────────────────
         # 3. Call LLM
         # ─────────────────────────────────────────────
 

@@ -60,6 +60,7 @@ class QueryRouter:
         kundali_core_id: UUID,
         kundali_chart,
         question: str,
+        language: str = "English", # <--- NEW PARAMETER
     ) -> Dict[str, Any]:
         """
         Route and answer a user question.
@@ -166,6 +167,7 @@ class QueryRouter:
                 derived=kundali_derived.to_dict() if kundali_derived else None,
                 divisionals=kundali_divisionals,
                 rag_context=rag_context,
+                language=language, # <--- Pass language to AI Service
             )
 
             return {
