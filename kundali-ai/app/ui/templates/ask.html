@@ -262,35 +262,54 @@
                 `;
             }
 
-            bubble.innerHTML = isAi && !audioBase64 ? '<span class="typing-cursor"></span>' : contentHtml; // logic for typewriter is handled below
+            // Initial Content
+            if (isAi && !audioBase64) {
+                bubble.innerHTML = '<span class="typing-cursor"></span>';
+            } else {
+                bubble.innerHTML = contentHtml;
+            }
 
             div.appendChild(bubble);
             chatBox.appendChild(div);
 
-            // Typewriter Effect for AI Text (only if not restoring from history, but here we assume live)
-            // Ideally we check if it's a "live" message. For simplicity, we'll just set innerHTML directly for now unless requested.
-            // But user asked for Typewriter. Let's do it properly.
+            // Scroll to bottom
+            setTimeout(() => chatBox.scrollTop = chatBox.scrollHeight, 100);
 
-            if (isAi) {
-                // If it has audio, we render instantly to sync with voice. 
-                // Typewriter + Voice is tricky to sync perfectly without timestamps. 
-                // Strategy: Render text instantly if audio is present (User listens). 
-                // OR Typewrite it. Let's Typewrite it fast.
+            // Trigger Typewriter if needed
+            if (isAi && !audioBase64) {
+                typewriterEffect(bubble, contentHtml);
+            }
+        }
 
-                // Clear content for typing
-                // bubble.innerHTML = ... 
-                // Actually, let's keep it simple: Render HTML directly to avoid layout shifts with complex formatting.
-                // The user asked for typewriter, but with rich HTML (bold/lists), simple typewriters break tags.
-                // A robust HTML typewriter is complex.
-                // Compromise: Fade in paragraphs one by one? 
+        async function typewriterEffect(element, htmlContent) {
+            // 1. Parse HTML into tokens (tags and text)
+            const tokens = htmlContent.split(/(<[^>]+>)/g).filter(t => t);
 
-                // Let's implement a smart typewriter that respects tags.
-                if (!audioBase64) { // Only typewrite if no audio, or maybe always?
-                    // For now, let's stick to Instant Render as Audio is the primary mode.
+            element.innerHTML = ''; // Clear cursor temporarily
+
+            // Re-add cursor at the end of content
+            const cursor = document.createElement('span');
+            cursor.className = 'typing-cursor';
+            element.appendChild(cursor);
+
+            for (const token of tokens) {
+                if (token.startsWith('<')) {
+                    // It's a tag, append directly (but insert before cursor)
+                    cursor.insertAdjacentHTML('beforebegin', token);
+                } else {
+                    // It's text, type it out
+                    for (let i = 0; i < token.length; i++) {
+                        cursor.insertAdjacentText('beforebegin', token[i]);
+                        // Scroll occasionally
+                        if (i % 5 === 0) chatBox.scrollTop = chatBox.scrollHeight;
+                        await new Promise(r => setTimeout(r, 10)); // Typing speed
+                    }
                 }
             }
 
-            setTimeout(() => chatBox.scrollTop = chatBox.scrollHeight, 100);
+            // Cleanup cursor after typing
+            cursor.remove();
+            chatBox.scrollTop = chatBox.scrollHeight;
         }
 
 

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from uuid import UUID
-from typing import Any
+from typing import Any, List
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +30,7 @@ class AskRequest(BaseModel):
 class AskResponse(BaseModel):
     mode: str
     answer: Any
+    suggestions: List[str] | None = None
     explanations: Any | None = None
     transits: Any | None = None
 
@@ -81,4 +82,9 @@ async def ask_question(
         question=payload.question,
     )
 
+    # Ensure suggestions are passed to the response model
+    if isinstance(result, dict) and "suggestions" in result:
+        # The result dict matches the response model structure closer now
+        pass 
+    
     return result

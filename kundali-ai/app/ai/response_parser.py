@@ -25,7 +25,18 @@ def parse_llm_response(raw_text: str) -> Dict[str, Any]:
     - Works with headings
     """
 
-    cleaned = _clean_text(raw_text)
+    # Extract Suggestions
+    suggestions = []
+    if "|||SUGGESTIONS:" in raw_text:
+        parts = raw_text.split("|||SUGGESTIONS:")
+        raw_text_clean = parts[0].strip()
+        suggestions_str = parts[1].strip()
+        if suggestions_str:
+             suggestions = [s.strip() for s in suggestions_str.split("|") if s.strip()]
+    else:
+        raw_text_clean = raw_text
+
+    cleaned = _clean_text(raw_text_clean)
 
     sections = _extract_sections(cleaned)
     confidence = _infer_confidence(cleaned)
@@ -34,6 +45,7 @@ def parse_llm_response(raw_text: str) -> Dict[str, Any]:
         "text": cleaned,
         "confidence": confidence,
         "sections": sections,
+        "suggestions": suggestions,
     }
 
 

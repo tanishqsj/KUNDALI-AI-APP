@@ -82,12 +82,8 @@ async def voice_interaction(
         answer_text = "I found relevant astrological rules in your chart."
 
     # Extract Suggestions
-    suggestions = []
-    if "|||SUGGESTIONS:" in answer_text:
-        parts = answer_text.split("|||SUGGESTIONS:")
-        answer_text = parts[0].strip()
-        if len(parts) > 1:
-            suggestions = [s.strip() for s in parts[1].split("|") if s.strip()]
+    # Extract Suggestions
+    suggestions = answer_data.get("suggestions", [])
 
     # 4. Real TTS (Edge-TTS - Free)
     # Generate audio from the answer text

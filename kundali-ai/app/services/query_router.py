@@ -173,6 +173,7 @@ class QueryRouter:
             return {
                 "mode": "ai",
                 "answer": ai_answer,
+                "suggestions": ai_answer.get("suggestions", []),
                 "explanations": explanations,
                 "transits": transit_payload,
                 "rag_sources": len(rag_context),
