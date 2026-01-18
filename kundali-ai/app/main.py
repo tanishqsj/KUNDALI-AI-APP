@@ -15,6 +15,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 2. Block Stray WebSockets (Fix for AssertionError in StaticFiles)
+class WebSocketBlockerMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "websocket":
+            # Gracefully close stray WebSocket connections
+            await send({"type": "websocket.close", "code": 1000}) 
+            return
+        await self.app(scope, receive, send)
+
+app.add_middleware(WebSocketBlockerMiddleware)
+
 # 2. Include API Routes (Adjust import path if necessary)
 try:
     from app.api.v1.router import api_router

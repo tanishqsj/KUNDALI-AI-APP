@@ -80,16 +80,79 @@ class LLMClient:
 
         raise LLMClientError("LLM request failed")
 
+    async def complete_stream(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+    ):
+        """
+        Generate a streaming completion from the LLM.
+        Yields chunks of text.
+        """
+        try:
+            stream = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                stream=True,
+            )
+
+            async for chunk in stream:
+                content = chunk.choices[0].delta.content
+                if content:
+                    yield content
+
+        except Exception as e:
+            raise LLMClientError(f"Streaming failed: {str(e)}")
+
     async def get_embedding(self, text: str) -> List[float]:
         """
-        Generate an embedding vector for the given text.
+        Generate an embedding vector for the given text, with caching.
         """
+        if not text:
+            return []
+
+        # 1. Check cache
+        import hashlib
+        import json
+        from app.cache.redis import RedisClient
+
+        text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
+        cache_key = f"embedding:{text_hash}"
+        
+        try:
+            redis_client = RedisClient.get_client()
+            cached = await redis_client.get(cache_key)
+            if cached:
+                return json.loads(cached)
+        except Exception as e:
+            # Log error but continue to fetch from API
+            print(f"⚠️ [Redis] Cache read failed: {e}")
+
+        # 2. Fetch from API
         try:
             response = await self.client.embeddings.create(
                 input=text,
                 model="text-embedding-3-small"
             )
-            return response.data[0].embedding
+            embedding = response.data[0].embedding
+            
+            # 3. Store in cache (Async, fire-and-forget-ish)
+            try:
+                await redis_client.setex(
+                    cache_key,
+                    86400,  # 24 hours
+                    json.dumps(embedding)
+                )
+            except Exception as e:
+                print(f"⚠️ [Redis] Cache write failed: {e}")
+                
+            return embedding
         except Exception as e:
             raise LLMClientError(f"Embedding failed: {str(e)}")
 

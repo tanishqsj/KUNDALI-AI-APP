@@ -496,16 +496,44 @@
                 hideLoading();
 
                 if (!res.ok) throw new Error(await res.text());
-                const data = await res.json();
 
-                let answerText = data.mode === 'ai' ? data.answer.text : "I found matching rules but couldn't generate a story.";
+                // Prepare UI for stream
+                saveMessage('ai', '');
+                appendMessage('ai', ''); // Create empty bubble
+                const bubble = chatBox.lastElementChild.querySelector('.bg-white'); // Get last bubble
 
-                saveMessage('ai', answerText); // Save
-                appendMessage('ai', answerText);
+                let fullText = "";
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
 
-                if (data.suggestions) {
-                    appendSuggestions(data.suggestions);
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.trim()) {
+                            try {
+                                const data = JSON.parse(line);
+                                if (data.chunk) {
+                                    fullText += data.chunk;
+                                    bubble.innerHTML = formatAiText(fullText); // Update in place
+                                    chatBox.scrollTop = chatBox.scrollHeight;
+                                }
+                            } catch (e) {
+                                console.error("Error parsing JSON chunk", e);
+                            }
+                        }
+                    }
                 }
+
+                // Final save
+                saveMessage('ai', fullText);
+
+                // Suggestion extraction logic (if we add it back to stream)
+                // For now, simpler stream logic
 
             } catch (err) {
                 hideLoading();

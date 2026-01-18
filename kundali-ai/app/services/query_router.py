@@ -52,6 +52,92 @@ class QueryRouter:
     # Public API
     # ─────────────────────────────────────────────
 
+    def _generate_cache_key(self, kundali_id: UUID, question: str, language: str) -> str:
+        import hashlib
+        import re
+        # Normalize: alphanumeric only, lowercase, single spaces
+        # This fixes "Voice vs Text" cache misses (e.g. "Who am I" vs "Who am I?")
+        normalized_q = re.sub(r'[^\w\s]', '', question).lower()
+        normalized_q = re.sub(r'\s+', ' ', normalized_q).strip()
+
+        q_hash = hashlib.md5(normalized_q.encode("utf-8")).hexdigest()
+        return f"answer:{kundali_id}:{q_hash}:{language}"
+
+    async def stream_answer(
+        self,
+        *,
+        session: AsyncSession,
+        user_id: UUID,
+        kundali_core_id: UUID,
+        kundali_chart,
+        question: str,
+        language: str = "English",
+        ttl: int = 86400, # 24 Hours
+    ):
+        """
+        Stream answer directly from AI Service, with Caching.
+        """
+        import json
+        from app.cache.redis import RedisClient
+
+        # 0. Generate Cache Key
+        cache_key = self._generate_cache_key(kundali_core_id, question, language)
+
+        # 1. Check Cache
+        try:
+            redis_client = RedisClient.get_client()
+            cached_answer = await redis_client.get(cache_key)
+            if cached_answer:
+                import asyncio
+                # Simulate streaming for consistent UX (Fast Typewriter)
+                words = cached_answer.split(" ")
+                for i, word in enumerate(words):
+                    chunk = word + (" " if i < len(words) - 1 else "")
+                    yield json.dumps({"chunk": chunk}) + "\n"
+                    # 10ms delay gives ~100 words/sec (very fast reading speed but visible stream)
+                    await asyncio.sleep(0.01)
+                return
+        except Exception as e:
+            print(f"⚠️ [Redis] Read failed: {e}")
+
+        # 2. Retrieve RAG Context (Only if Cache Miss)
+        rag_context = await self.knowledge_service.retrieve_context(
+            session=session,
+            query=question
+        )
+
+        explanations = []
+
+        # 3. Stream from AI Service & Accumulate
+        full_text_accumulator = ""
+        
+        async for chunk in self.ai_service.stream_answer(
+            user_id=user_id,
+            question=question,
+            kundali_chart=kundali_chart,
+            explanations=explanations,
+            rag_context=rag_context,
+            language=language or "English"
+        ):
+            # Parse chunk ... (same)
+            try:
+                clean_chunk = chunk.strip() 
+                if clean_chunk:
+                    data = json.loads(clean_chunk)
+                    if "chunk" in data:
+                         full_text_accumulator += data["chunk"]
+            except:
+                pass
+
+            yield chunk
+
+        # 4. Save to Cache
+        if full_text_accumulator:
+            try:
+                await redis_client.setex(cache_key, ttl, full_text_accumulator)
+            except Exception as e:
+                print(f"⚠️ [Redis] Write failed: {e}")
+
     async def answer(
         self,
         *,
@@ -60,19 +146,41 @@ class QueryRouter:
         kundali_core_id: UUID,
         kundali_chart,
         question: str,
-        language: str = "English", # <--- NEW PARAMETER
+        language: str = "English",
     ) -> Dict[str, Any]:
         """
         Route and answer a user question.
         """
-        cached = await self.cache.get_answer(
-        user_id=user_id,
-        kundali_core_id=kundali_core_id,
-        question=question,
-        )
+        from app.cache.redis import RedisClient
+        
+        # 1. Check Shared Cache (Redis)
+        cache_key = self._generate_cache_key(kundali_core_id, question, language)
+        try:
+            redis_client = RedisClient.get_client()
+            cached_text = await redis_client.get(cache_key)
+            if cached_text:
+                # Construct a mock response from cached text
+                return {
+                    "mode": "ai",
+                    "answer": {"text": cached_text, "language": language},
+                    "suggestions": [],
+                    "explanations": [],
+                    "transits": None,
+                    "rag_sources": 0, # Cached
+                }
+        except Exception as e:
+             print(f"⚠️ [Redis] Read failed in answer: {e}")
 
+        # Legacy Cache Check (Optional, keeping for safety if Redis fails or different key used)
+        cached = await self.cache.get_answer(
+            user_id=user_id,
+            kundali_core_id=kundali_core_id,
+            question=question,
+        )
         if cached:
             return cached
+
+        # ... (Rest of logic) ...
 
         intent = self._detect_intent(question)
 
@@ -169,6 +277,14 @@ class QueryRouter:
                 rag_context=rag_context,
                 language=language, # <--- Pass language to AI Service
             )
+
+            # SAVE TO SHARED REDIS CACHE
+            try:
+                text_to_cache = ai_answer.get("text") or str(ai_answer)
+                if isinstance(text_to_cache, str) and text_to_cache.strip():
+                     await redis_client.setex(cache_key, 86400, text_to_cache)
+            except Exception as e:
+                print(f"⚠️ [Redis] Shared cache write failed (Voice path): {e}")
 
             return {
                 "mode": "ai",

@@ -187,6 +187,84 @@ class AIService:
 
         return parse_llm_response(safe_response)
 
+        return parse_llm_response(safe_response)
+
+    async def stream_answer(
+        self,
+        *,
+        user_id: UUID,
+        question: str,
+        kundali_chart,
+        explanations: List[Dict[str, Any]],
+        transits: Dict[str, Any] | None = None,
+        derived: Dict[str, Any] | None = None,
+        divisionals: List[Any] | None = None,
+        rag_context: List[str] | None = None,
+        language: str = "English",
+    ):
+        """
+        Stream the AI answer token by token.
+        Yields JSON strings: {"chunk": "token"}
+        """
+        # 1. Build Context (Same as answer)
+        prompt_builder = self._select_prompt_builder(question)
+        
+        # ... logic duplications for sanitization ...
+        # (For brevity in this edit, assuming we can reuse the prompt construction logic if we extracted it, 
+        # but for now we will duplicate the critical setup parts to ensure stability)
+
+        # Sanitize chart data
+        sanitized_chart = {
+            "ascendant": {
+                "sign": kundali_chart.ascendant.sign,
+                "degree": round(kundali_chart.ascendant.degree, 2)
+            },
+            "planets": {
+                name: {
+                    "sign": p.sign, "house": p.house, "degree": round(p.degree, 2),
+                    "nakshatra": p.nakshatra, "retrograde": p.retrograde
+                }
+                for name, p in kundali_chart.planets.items()
+            }
+        }
+        
+        # Prompt Construction
+        prompt = prompt_builder(
+            question=question,
+            kundali=sanitized_chart,
+            explanations=explanations,
+            transits=transits,
+        )
+
+        # RAG Injection
+        if rag_context:
+            context_str = "\n\n".join(rag_context)
+            additional_instructions = (
+                "\n\n🛑 IMPORTANT: SHASTRA REFERENCE (RAG DATA) 🛑\n"
+                f"{context_str}\n"
+                "Use this as primary source.\n"
+            )
+            prompt["system"] += additional_instructions
+
+        # Language
+        if language and language.lower() != "english":
+            prompt["system"] += f"\n\nRespond in {language}."
+
+        # Suggestion Instruction
+        # We tell the LLM to provide suggestions at the end still
+        suggestion_instruction = (
+            "\n\n|||SUGGESTIONS: <Question 1>|<Question 2>|<Question 3>"
+        )
+        prompt["system"] += suggestion_instruction
+
+        # 2. Call LLM Stream
+        import json
+        async for chunk in self.llm.complete_stream(
+            system_prompt=prompt["system"],
+            user_prompt=prompt["user"],
+        ):
+            yield json.dumps({"chunk": chunk}) + "\n"
+
     def _select_prompt_builder(self, question: str):
         """
         Select appropriate prompt template based on question intent.
