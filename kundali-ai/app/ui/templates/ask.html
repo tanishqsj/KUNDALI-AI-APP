@@ -208,7 +208,7 @@
             }).join('');
         }
 
-        function appendMessage(role, text, audioBase64 = null, shouldAutoplay = false) {
+        function appendMessage(role, text, audioBase64 = null, shouldAutoplay = false, skipTyping = false) {
             const div = document.createElement('div');
             div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in-up`;
 
@@ -276,8 +276,16 @@
             setTimeout(() => chatBox.scrollTop = chatBox.scrollHeight, 100);
 
             // Trigger Typewriter if needed
-            if (isAi && !audioBase64) {
+            if (isAi && !audioBase64 && !skipTyping) {
                 typewriterEffect(bubble, contentHtml);
+            } else {
+                if (isAi && !audioBase64) {
+                    // If skipping typing, just show the content (with markdown formatting)
+                    // But wait, contentHtml is already formatted? Yes.
+                    // But we set <span class="typing-cursor"> above if isAi & !audioBase64.
+                    // We need to fix that initial content setting.
+                    bubble.innerHTML = contentHtml;
+                }
             }
         }
 
@@ -329,26 +337,153 @@
             }
         }
 
+        // Karaoke State
+        let currentTimings = [];
+        let karaokespans = [];
+
         function updateProgress(id) {
             const audio = document.getElementById(id);
-            const seek = document.getElementById(`seek-${id}`);
-            const time = document.getElementById(`time-${id}`);
+            const progressBar = document.getElementById(`bar-${id}`);
+            const timeDisplay = document.getElementById(`time-${id}`);
+            const seekSlider = document.getElementById(`seek-${id}`);
 
-            if (!audio.duration) return;
+            if (audio) {
+                const percent = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
 
-            const pct = (audio.currentTime / audio.duration) * 100;
-            seek.value = pct;
+                if (progressBar) progressBar.style.width = `${percent}%`;
+                if (seekSlider) seekSlider.value = percent;
 
-            const mins = Math.floor(audio.currentTime / 60);
-            const secs = Math.floor(audio.currentTime % 60).toString().padStart(2, '0');
-            time.innerText = `${mins}:${secs}`;
+                // Update Time
+                // Use duration if available for total? No, just current.
+                const minutes = Math.floor(audio.currentTime / 60);
+                const seconds = Math.floor(audio.currentTime % 60);
+                if (timeDisplay) timeDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+                // Update Karaoke Highlight
+                updateKaraokeHighlight(audio.currentTime);
+            }
         }
 
+        function updateKaraokeHighlight(currentTime) {
+            // Remove highlight from all
+            // Optimize: only remove from previous active?
+            // For simplicity, query selector all '.karaoke-active'
+            const active = document.querySelectorAll('.karaoke-active');
+            active.forEach(el => el.classList.remove('karaoke-active', 'bg-indigo-100', 'text-indigo-700', 'font-medium'));
+
+            // Find current word
+            // timings: {word, start, end}
+            const match = currentTimings.find(t => currentTime >= t.start && currentTime <= t.end);
+            if (match && match.spanId) {
+                const span = document.getElementById(match.spanId);
+                if (span) {
+                    span.classList.add('karaoke-active', 'bg-indigo-100', 'text-indigo-700', 'font-medium', 'rounded-sm', 'px-0.5');
+                    // Optional: auto-scroll to word?
+                    // span.scrollIntoView({behavior: "smooth", block: "center"}); 
+                }
+            }
+        }
+
+        // Advanced Text-Node walker to apply spans without breaking HTML
+        function applyKaraokeTags(bubble, timings) {
+            if (!timings || timings.length === 0) return;
+            currentTimings = timings; // Store globally for update loop
+
+            // We need to map linear words to text nodes.
+            // 1. Get all text nodes
+            const textNodes = [];
+            const walker = document.createTreeWalker(bubble, NodeFilter.SHOW_TEXT, null, false);
+            let node;
+            while (node = walker.nextNode()) {
+                if (node.parentElement.tagName !== 'SCRIPT' && node.parentElement.tagName !== 'STYLE') {
+                    textNodes.push(node);
+                }
+            }
+
+            let timingIndex = 0;
+
+            // 2. Iterate text nodes and wrap words
+            for (const textNode of textNodes) {
+                const textContent = textNode.nodeValue;
+                // We will rebuild this text node as a fragment of spans and text
+                let lastIndex = 0;
+                const fragment = document.createDocumentFragment();
+                let modified = false;
+
+                // Regex to find words in this node
+                // We match against the timing word.
+                // Note: TTS word might be normalized (no punct), text might have punct.
+                // Simple strict match might fail.
+                // We'll perform a fuzzy search or just strict containment.
+
+                // Simplification for reliability: 
+                // Just assume sequential matching of words.
+
+                let haystack = textContent;
+                let searchIndex = 0;
+
+                while (timingIndex < timings.length) {
+                    const t = timings[timingIndex];
+                    const word = t.word.trim();
+                    if (!word) { timingIndex++; continue; }
+
+                    // Find this word in the text node
+                    // We look ahead from searchIndex
+                    const idx = haystack.indexOf(word, searchIndex);
+
+                    if (idx !== -1) {
+                        // Found a match!
+                        // 1. Text before match
+                        if (idx > searchIndex) {
+                            fragment.appendChild(document.createTextNode(haystack.substring(searchIndex, idx)));
+                        }
+
+                        // 2. The match (Wrapped)
+                        const span = document.createElement('span');
+                        span.textContent = word;
+                        const spanId = `k-word-${timingIndex}`;
+                        span.id = spanId;
+                        span.className = "transition-all duration-100";
+                        fragment.appendChild(span);
+
+                        // Store spanId in timing object
+                        t.spanId = spanId;
+
+                        searchIndex = idx + word.length;
+                        timingIndex++;
+                        modified = true;
+                    } else {
+                        // Word not found in this node. 
+                        // It might be in the next node.
+                        // Break and move to next node.
+                        break;
+                    }
+                }
+
+                // Append remaining text
+                if (searchIndex < haystack.length) {
+                    fragment.appendChild(document.createTextNode(haystack.substring(searchIndex)));
+                }
+
+                if (modified) {
+                    textNode.parentNode.replaceChild(fragment, textNode);
+                }
+            }
+        }
         function seekAudio(id, val) {
             const audio = document.getElementById(id);
             if (!audio.duration) return;
             const time = (val / 100) * audio.duration;
             audio.currentTime = time;
+
+            // Instant Feedback
+            const timeDisplay = document.getElementById(`time-${id}`);
+            const minutes = Math.floor(time / 60);
+            const seconds = Math.floor(time % 60);
+            if (timeDisplay) timeDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+            // Update Karaoke instantly
+            updateKaraokeHighlight(time);
         }
 
         // --- Visualizer Logic ---
@@ -436,40 +571,39 @@
         }
 
         // --- Persistence Logic ---
-        function getStorageKey() {
+        async function loadMessages() {
             const id = document.getElementById('kundaliId').value;
-            return id ? `chat_history_${id}` : null;
+            const userId = "00000000-0000-0000-0000-000000000001"; // Mock User ID for now (should come from auth context)
+            if (!id) return;
+
+            // Clear previous chat
+            const chatBox = document.getElementById('chatBox');
+            chatBox.innerHTML = '';
+
+            try {
+                const res = await fetch(`${API_BASE}/api/v1/history/${id}?user_id=${userId}`);
+                if (!res.ok) return; // No history or error
+
+                const messages = await res.json();
+                messages.forEach(msg => {
+                    appendMessage(msg.role, msg.text, null, false, true);
+                });
+
+                // Scroll to bottom
+                chatBox.scrollTop = chatBox.scrollHeight;
+            } catch (e) {
+                console.error("Failed to load history", e);
+            }
         }
 
+        // Removed manual saveMessage since backend handles persistence now.
         function saveMessage(role, text, audioBase64 = null) {
-            const key = getStorageKey();
-            if (!key) return;
-
-            const history = JSON.parse(sessionStorage.getItem(key) || '[]');
-            history.push({ role, text, audioBase64, timestamp: new Date().toISOString() });
-            sessionStorage.setItem(key, JSON.stringify(history));
+            // No-op
         }
 
-        function loadHistory() {
-            chatBox.innerHTML = `
-                <div class="text-center text-slate-400 text-sm mt-10">
-                    <p class="text-2xl mb-2">👋</p>
-                    <p class="font-medium text-slate-500">I am your AI Astrologer.</p>
-                    <p class="mt-2 opacity-75">Type or speak your question below.</p>
-                </div>`;
-
-            const key = getStorageKey();
-            if (!key) return;
-
-            const history = JSON.parse(sessionStorage.getItem(key) || '[]');
-            if (history.length > 0) chatBox.innerHTML = ''; // Clear greeting if history exists
-
-            history.forEach(msg => appendMessage(msg.role, msg.text, msg.audioBase64));
-        }
-
-        document.getElementById('kundaliId').addEventListener('change', loadHistory);
+        document.getElementById('kundaliId').addEventListener('change', loadMessages);
         // Initial load if ID exists
-        if (document.getElementById('kundaliId').value) loadHistory();
+        if (document.getElementById('kundaliId').value) loadMessages();
 
 
         document.getElementById('askForm').addEventListener('submit', async (e) => {
@@ -584,39 +718,216 @@
             }
         });
 
+        // Audio Queue Logic
+        let audioQueue = [];
+        let isPlayingAudio = false;
+
+        function playNextChunk() {
+            if (isPlayingAudio || audioQueue.length === 0) return;
+
+            isPlayingAudio = true;
+            const b64 = audioQueue.shift();
+
+            // Convert base64 to Blob
+            const byteCharacters = atob(b64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'audio/mp3' });
+            const url = URL.createObjectURL(blob);
+
+            const audio = new Audio(url);
+            audio.onended = () => {
+                isPlayingAudio = false;
+                URL.revokeObjectURL(url);
+                playNextChunk();
+            };
+            audio.play().catch(e => {
+                console.error("Audio play error", e);
+                isPlayingAudio = false;
+                playNextChunk();
+            });
+        }
+
+        // Stream Utilities
+        function handleStreamPlayPause(id) {
+            toggleAudio(id);
+        }
+
+        function updateStreamBtn(audioId, isPlaying) {
+            const playIcon = document.getElementById(`icon-play-${audioId}`);
+            const pauseIcon = document.getElementById(`icon-pause-${audioId}`);
+            if (!playIcon || !pauseIcon) return;
+
+            if (isPlaying) {
+                playIcon.classList.add('hidden');
+                pauseIcon.classList.remove('hidden');
+            } else {
+                playIcon.classList.remove('hidden');
+                pauseIcon.classList.add('hidden');
+            }
+        }
+
         async function processAudio(blob, id) {
             const loadingMsg = showLoading();
-            loadingMsg.innerHTML = '<span>🎙️</span> Processing voice...';
+            loadingMsg.innerHTML = '<span>🎙️</span> Listening...';
             const formData = new FormData();
             formData.append('audio', blob, 'recording.wav');
 
+            // Reset Queue
+            audioQueue = [];
+            isPlayingAudio = false;
+
             try {
-                const res = await fetch(`${API_BASE}/api/v1/voice?kundali_core_id=${id}`, { method: 'POST', body: formData });
+                const res = await fetch(`${API_BASE}/api/v1/voice?kundali_core_id=${id}`, {
+                    method: 'POST',
+                    body: formData
+                });
 
-                const reader = new FileReader();
-                reader.readAsDataURL(blob);
-                reader.onloadend = async () => {
-                    const base64Audio = reader.result.split(',')[1];
+                hideLoading();
 
-                    hideLoading();
-                    if (!res.ok) {
-                        try { appendMessage('ai', '⚠️ Error: ' + await res.text()); }
-                        catch (e) { appendMessage('ai', '⚠️ Error: Voice processing failed.'); }
-                        return;
+                if (!res.ok) {
+                    appendMessage('ai', '⚠️ Error: Voice request failed.');
+                    return;
+                }
+
+                // Create user/AI bubbles
+                // Temporarily create user bubble with "..." until transcription arrives?
+                // Or wait for first event. Let's wait for first event or use a placeholder.
+                let userBubble = null;
+                let aiBubble = null;
+                let aiText = "";
+
+                // State
+                // State
+                let fullAudioChunks = [];
+                let hasInjectedPlayer = false;
+                let audioId = `audio-stream-${Date.now()}`;
+                let pendingTimings = null; // Store timings to apply later
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                // Helper: Inject Player UI with Slider
+                function injectPlayerHelper(bubble) {
+                    if (document.getElementById(`container-${audioId}`)) return; // Prevent duplicate
+
+                    const playerHtml = `
+                        <div class="mt-4 pt-3 border-t border-slate-100" id="container-${audioId}">
+                             <p class="text-[10px] uppercase tracking-widest opacity-60 mb-2">Voice Response</p>
+                             <div class="flex items-center gap-3">
+                                <button id="btn-${audioId}" onclick="handleStreamPlayPause('${audioId}')" class="w-8 h-8 flex items-center justify-center bg-indigo-100 text-indigo-600 rounded-full hover:bg-indigo-200 transition">
+                                    <svg id="icon-play-${audioId}" xmlns="http://www.w3.org/2000/svg" class="has-audio hidden h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                    <svg id="icon-pause-${audioId}" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                                </button>
+                                
+                                <input type="range" id="seek-${audioId}" value="0" max="100" class="flex-grow h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" oninput="seekAudio('${audioId}', this.value)">
+                                
+                                <span id="time-${audioId}" class="text-[10px] text-slate-400 font-mono w-8 text-right">0:00</span>
+
+                                <audio id="${audioId}" class="hidden" 
+                                       onplay="updateStreamBtn('${audioId}', true)" 
+                                       onpause="updateStreamBtn('${audioId}', false)"
+                                       ontimeupdate="updateProgress('${audioId}')"
+                                       onended="updateStreamBtn('${audioId}', false)"></audio>
+                             </div>
+                        </div>`;
+                    bubble.insertAdjacentHTML('beforeend', playerHtml);
+                }
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    buffer += chunk;
+
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep incomplete line
+
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+
+                        try {
+                            const data = JSON.parse(line);
+
+                            // 1. Transcription
+                            if (data.type === "transcription") {
+                                if (!userBubble) {
+                                    saveMessage('user', data.text);
+                                    appendMessage('user', data.text, null, false, true);
+                                    userBubble = true;
+                                    saveMessage('ai', '');
+                                    appendMessage('ai', '');
+                                    aiBubble = chatBox.lastElementChild.querySelector('.bg-white');
+                                }
+                            }
+                            // 2. Text Chunk (AI Text)
+                            else if (data.type === "text") {
+                                if (!aiBubble) {
+                                    saveMessage('ai', '');
+                                    appendMessage('ai', '');
+                                    aiBubble = chatBox.lastElementChild.querySelector('.bg-white');
+                                }
+                                aiText += data.chunk;
+                                aiBubble.innerHTML = formatAiText(aiText);
+                                chatBox.scrollTop = chatBox.scrollHeight;
+                            }
+                            // 3. Timings Event
+                            else if (data.type === "timings") {
+                                pendingTimings = data.data;
+                            }
+                            // 4. Audio Chunk
+                            else if (data.type === "audio") {
+                                try {
+                                    const binary = atob(data.chunk);
+                                    const bytes = new Uint8Array(binary.length);
+                                    for (let i = 0; i < binary.length; i++) {
+                                        bytes[i] = binary.charCodeAt(i);
+                                    }
+                                    fullAudioChunks.push(bytes.buffer);
+                                } catch (e) { console.error("Error decoding audio chunk", e); }
+                            }
+
+                        } catch (e) {
+                            // Ignore
+                        }
+                    }
+                }
+
+                // POST-PROCESSING: Apply UI updates nicely
+                if (aiBubble) {
+                    // 1. Apply Karaoke Tags (Text is final now)
+                    if (pendingTimings) {
+                        applyKaraokeTags(aiBubble, pendingTimings);
                     }
 
-                    const data = await res.json();
-                    const qText = data.question_text || "(Voice Message)";
-                    const aText = data.answer_text;
+                    // 2. Inject Player & Play (Audio is ready)
+                    if (fullAudioChunks.length > 0) {
+                        try {
+                            injectPlayerHelper(aiBubble);
 
-                    saveMessage('user', qText, base64Audio);
-                    appendMessage('user', qText, base64Audio);
+                            const finalBlob = new Blob(fullAudioChunks, { type: 'audio/mp3' });
+                            const audioUrl = URL.createObjectURL(finalBlob);
 
-                    setTimeout(() => {
-                        saveMessage('ai', aText, data.audio_bytes);
-                        appendMessage('ai', aText, data.audio_bytes, true);
-                        if (data.suggestions) appendSuggestions(data.suggestions);
-                    }, 500);
+                            const audioEl = document.getElementById(audioId);
+                            if (audioEl) {
+                                audioEl.src = audioUrl;
+                                audioEl.play().catch(e => console.log('Autoplay blocked', e));
+                            }
+                        } catch (e) {
+                            console.error("Player injection failed", e);
+                            appendMessage('ai', `⚠️ debug: Player injection failed - ${e.message}`); // Visible debug
+                        }
+                    } else {
+                        console.warn("No audio chunks received.");
+                        // Force visible debug message
+                        const debugInfo = `Chunk count: ${fullAudioChunks.length}, Timings present: ${!!pendingTimings}`;
+                        appendMessage('ai', `⚠️ Audio Missing (${debugInfo}). Please check server logs.`);
+                    }
                 }
 
             } catch (err) {

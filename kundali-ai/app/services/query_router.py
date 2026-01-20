@@ -75,32 +75,59 @@ class QueryRouter:
         ttl: int = 86400, # 24 Hours
     ):
         """
-        Stream answer directly from AI Service, with Caching.
+        Stream answer directly from AI Service, with Caching and Persistence.
         """
         import json
         from app.cache.redis import RedisClient
+        from app.persistence.repositories.chat_history_repo import ChatHistoryRepository
 
-        # 0. Generate Cache Key
+        # Initialize Repo
+        chat_repo = ChatHistoryRepository(session)
+
+        # 0. Persist User Question (Fire & Forget/Async wait? Better await to ensure order)
+        # We await it to ensure it is saved.
+        try:
+             await chat_repo.add_message(
+                 user_id=user_id, 
+                 role="user", 
+                 content=question, 
+                 kundali_core_id=kundali_core_id
+             )
+        except Exception as e:
+            print(f"⚠️ [DB] Failed to save user message: {e}")
+
+        # 1. Generate Cache Key
         cache_key = self._generate_cache_key(kundali_core_id, question, language)
 
-        # 1. Check Cache
+        # 2. Check Cache
         try:
             redis_client = RedisClient.get_client()
             cached_answer = await redis_client.get(cache_key)
             if cached_answer:
                 import asyncio
-                # Simulate streaming for consistent UX (Fast Typewriter)
+                # Simulate streaming
                 words = cached_answer.split(" ")
                 for i, word in enumerate(words):
                     chunk = word + (" " if i < len(words) - 1 else "")
                     yield json.dumps({"chunk": chunk}) + "\n"
-                    # 10ms delay gives ~100 words/sec (very fast reading speed but visible stream)
                     await asyncio.sleep(0.01)
+                
+                # Persist AI Answer (Cache Hit)
+                try:
+                    await chat_repo.add_message(
+                        user_id=user_id,
+                        role="ai",
+                        content=cached_answer,
+                        kundali_core_id=kundali_core_id
+                    )
+                except Exception as e:
+                    print(f"⚠️ [DB] Failed to save AI message (cache hit): {e}")
+                
                 return
         except Exception as e:
             print(f"⚠️ [Redis] Read failed: {e}")
 
-        # 2. Retrieve RAG Context (Only if Cache Miss)
+        # 3. Retrieve RAG Context (Only if Cache Miss)
         rag_context = await self.knowledge_service.retrieve_context(
             session=session,
             query=question
@@ -108,7 +135,7 @@ class QueryRouter:
 
         explanations = []
 
-        # 3. Stream from AI Service & Accumulate
+        # 4. Stream from AI Service & Accumulate
         full_text_accumulator = ""
         
         async for chunk in self.ai_service.stream_answer(
@@ -131,12 +158,23 @@ class QueryRouter:
 
             yield chunk
 
-        # 4. Save to Cache
+        # 5. Save to Cache
         if full_text_accumulator:
             try:
                 await redis_client.setex(cache_key, ttl, full_text_accumulator)
             except Exception as e:
                 print(f"⚠️ [Redis] Write failed: {e}")
+            
+            # 6. Persist AI Answer (New Generation)
+            try:
+                await chat_repo.add_message(
+                    user_id=user_id,
+                    role="ai",
+                    content=full_text_accumulator,
+                    kundali_core_id=kundali_core_id
+                )
+            except Exception as e:
+                print(f"⚠️ [DB] Failed to save AI message: {e}")
 
     async def answer(
         self,
@@ -152,6 +190,20 @@ class QueryRouter:
         Route and answer a user question.
         """
         from app.cache.redis import RedisClient
+        from app.persistence.repositories.chat_history_repo import ChatHistoryRepository
+
+        chat_repo = ChatHistoryRepository(session)
+
+        # 0. Persist User Question
+        try:
+             await chat_repo.add_message(
+                 user_id=user_id, 
+                 role="user", 
+                 content=question, 
+                 kundali_core_id=kundali_core_id
+             )
+        except Exception as e:
+            print(f"⚠️ [DB] Failed to save user message (voice path): {e}")
         
         # 1. Check Shared Cache (Redis)
         cache_key = self._generate_cache_key(kundali_core_id, question, language)
@@ -159,7 +211,19 @@ class QueryRouter:
             redis_client = RedisClient.get_client()
             cached_text = await redis_client.get(cache_key)
             if cached_text:
-                # Construct a mock response from cached text
+                
+                # Persist AI Answer (Cache Hit)
+                try:
+                    await chat_repo.add_message(
+                        user_id=user_id,
+                        role="ai",
+                        content=cached_text,
+                        kundali_core_id=kundali_core_id
+                    )
+                except Exception as e:
+                    print(f"⚠️ [DB] Failed to save AI message (voice cache hit): {e}")
+
+                # Construct mock response
                 return {
                     "mode": "ai",
                     "answer": {"text": cached_text, "language": language},
@@ -283,8 +347,17 @@ class QueryRouter:
                 text_to_cache = ai_answer.get("text") or str(ai_answer)
                 if isinstance(text_to_cache, str) and text_to_cache.strip():
                      await redis_client.setex(cache_key, 86400, text_to_cache)
+                     
+                     # SAVE TO DB (New Answer)
+                     await chat_repo.add_message(
+                        user_id=user_id,
+                        role="ai",
+                        content=text_to_cache,
+                        kundali_core_id=kundali_core_id
+                    )
+
             except Exception as e:
-                print(f"⚠️ [Redis] Shared cache write failed (Voice path): {e}")
+                print(f"⚠️ [Persistent] Write failed (Voice path): {e}")
 
             return {
                 "mode": "ai",

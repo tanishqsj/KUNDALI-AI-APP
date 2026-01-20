@@ -22,6 +22,27 @@ class UsageRepository(BaseRepository[UsageLog]):
     def __init__(self, session: AsyncSession):
         super().__init__(session)
 
+    async def create(
+        self,
+        user_id,
+        feature: str,
+        quantity: int = 1
+    ) -> UsageLog:
+        """
+        Create and persist a new usage log entry.
+        """
+        log = UsageLog(
+            user_id=user_id,
+            feature=feature,
+            quantity=quantity
+        )
+        self.session.add(log)
+        # We don't necessarily need to commit here if service layer handles it,
+        # but BillingService.log_usage calls commit explicitly.
+        # But 'add' in BaseRepository flushes.
+        await self.session.flush()
+        return log
+
     async def count_usage_for_user(
         self,
         user_id,

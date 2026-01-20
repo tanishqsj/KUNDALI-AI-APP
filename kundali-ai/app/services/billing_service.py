@@ -93,7 +93,7 @@ class BillingService:
         feature: str,
     ) -> int:
         repo = UsageRepository(session)
-        return await repo.get_total_usage(
+        return await repo.count_monthly_usage(
             user_id=user_id,
             feature=feature,
         )

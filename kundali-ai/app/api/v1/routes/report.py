@@ -13,7 +13,7 @@ from app.services.report_service import ReportService
 
 router = APIRouter()
 
-@router.get("/report/pdf")
+@router.get("/pdf")
 async def get_pdf_report(
     kundali_core_id: UUID,
     include_transits: bool = False,
@@ -56,7 +56,7 @@ async def get_pdf_report(
         headers={"Content-Disposition": f"attachment; filename={result['filename']}"}
     )
 
-@router.post("/report/pdf_from_data")
+@router.post("/pdf_from_data")
 async def post_pdf_from_data(report_context: dict):
     """
     Generate a PDF from pre-fetched report data.
@@ -74,7 +74,7 @@ async def post_pdf_from_data(report_context: dict):
         raise HTTPException(status_code=500, detail=f"Failed to render PDF: {str(e)}")
 
 
-@router.get("/report/text")
+@router.get("/text")
 async def get_text_report(
     kundali_core_id: UUID,
     include_transits: bool = False,
