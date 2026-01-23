@@ -47,12 +47,18 @@ class BillingService:
         feature: str,
         quantity: int = 1,
     ) -> None:
+        # 0. Check for admin exemption
+        from app.persistence.repositories.user_repo import UserRepository
+        user = await UserRepository(session).get_by_id(user_id)
+        if user and user.is_admin:
+            return
+
         used = await self._get_usage(session, user_id, feature)
         limit = await self._get_quota_limit(session, user_id, feature)
 
         if used + quantity > limit:
             raise QuotaExceededError(
-                f"Quota exceeded for feature '{feature}' "
+                f"Quota exceeded for feature '{feature}' {user_id} "
                 f"(used={used}, limit={limit})"
             )
 
