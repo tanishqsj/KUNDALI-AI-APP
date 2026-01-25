@@ -73,6 +73,7 @@ class QueryRouter:
         question: str,
         language: str = "English",
         ttl: int = 86400, # 24 Hours
+        match_context: Dict[str, Any] | None = None,
     ):
         """
         Stream answer directly from AI Service, with Caching and Persistence.
@@ -144,7 +145,8 @@ class QueryRouter:
             kundali_chart=kundali_chart,
             explanations=explanations,
             rag_context=rag_context,
-            language=language or "English"
+            language=language or "English",
+            match_context=match_context,
         ):
             # Parse chunk ... (same)
             try:

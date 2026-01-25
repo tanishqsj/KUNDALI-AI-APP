@@ -19,6 +19,7 @@ router = APIRouter()
 @router.post("")
 async def voice_interaction(
     kundali_core_id: UUID,
+    match_id: UUID | None = None,
     audio: UploadFile = File(...),
     user=Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session)
@@ -44,6 +45,31 @@ async def voice_interaction(
 
     kundali_chart = kundali_core.to_domain()
 
+    # Load Match Context (if match_id provided)
+    match_context = None
+    if match_id:
+        from app.persistence.repositories.kundali_match_repo import KundaliMatchRepository
+        match_repo = KundaliMatchRepository(session)
+        match_result = await match_repo.get_by_id(match_id)
+        
+        if match_result:
+            boy_kundali = await repo.get_by_id(match_result.boy_kundali_id)
+            girl_kundali = await repo.get_by_id(match_result.girl_kundali_id)
+            
+            match_context = {
+                "match_details": {
+                    "boy_name": boy_kundali.birth_profile.name if boy_kundali and boy_kundali.birth_profile else "Boy",
+                    "girl_name": girl_kundali.birth_profile.name if girl_kundali and girl_kundali.birth_profile else "Girl",
+                    "total_score": match_result.total_score,
+                    "max_score": match_result.max_score,
+                    "percentage": ((match_result.total_score / match_result.max_score) * 100) if match_result.max_score else 0,
+                    "compatibility_rating": match_result.verdict,
+                    "factors": match_result.factors,
+                },
+                "boy_kundali": boy_kundali.to_domain() if boy_kundali else None,
+                "girl_kundali": girl_kundali.to_domain() if girl_kundali else None,
+            }
+
     service = VoiceService()
 
     return StreamingResponse(
@@ -53,6 +79,7 @@ async def voice_interaction(
             kundali_core_id=kundali_core_id,
             kundali_chart=kundali_chart,
             audio_bytes=audio_bytes,
+            match_context=match_context,
         ),
         media_type="text/event-stream"
     )

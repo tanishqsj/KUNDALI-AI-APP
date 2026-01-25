@@ -66,3 +66,49 @@ async def create_kundali(
     )
 
     return result
+
+
+# ─────────────────────────────────────────────
+# GET Kundali Core by ID (for chart rendering)
+# ─────────────────────────────────────────────
+
+from fastapi import HTTPException
+from sqlalchemy import select
+from app.persistence.models.kundali_core import KundaliCore
+
+
+@router.get(
+    "/kundali/{kundali_id}/core",
+    summary="Get kundali core data by ID",
+)
+async def get_kundali_core(
+    kundali_id: UUID,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """
+    Retrieve core kundali data (planets, houses, ascendant) for chart rendering.
+    """
+    from app.persistence.models.kundali_derived import KundaliDerived
+    
+    result = await session.execute(
+        select(KundaliCore).where(KundaliCore.id == kundali_id)
+    )
+    core = result.scalar_one_or_none()
+    
+    if not core:
+        raise HTTPException(status_code=404, detail="Kundali not found")
+    
+    # Also fetch derived for koot_factors
+    derived_result = await session.execute(
+        select(KundaliDerived).where(KundaliDerived.kundali_core_id == kundali_id)
+    )
+    derived = derived_result.scalar_one_or_none()
+    
+    return {
+        "id": core.id,
+        "ascendant": core.ascendant,
+        "planets": core.planets,
+        "houses": core.houses,
+        "koot_factors": derived.koot_factors if derived else {},
+    }

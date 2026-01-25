@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.routes import location  
+from app.security.middleware import SQLInjectionProtectionMiddleware
 import uvicorn
 
 app = FastAPI(title="Kundali AI")
@@ -14,6 +15,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 1.5 SQL Injection Protection Middleware
+app.add_middleware(SQLInjectionProtectionMiddleware)
 
 # 2. Block Stray WebSockets (Fix for AssertionError in StaticFiles)
 class WebSocketBlockerMiddleware:

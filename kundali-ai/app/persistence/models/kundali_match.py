@@ -1,9 +1,17 @@
+"""
+Kundali Match Model
+
+Stores the results of Ashta Koot matching between two Kundalis.
+"""
+
 import uuid
 from sqlalchemy import (
     ForeignKey,
     DateTime,
     JSON,
-    UniqueConstraint,
+    Float,
+    Integer,
+    String,
 )
 from datetime import datetime
 from sqlalchemy.dialects.postgresql import UUID
@@ -13,20 +21,14 @@ from sqlalchemy.sql import func
 from app.persistence.base import Base
 
 
-class KundaliDerived(Base):
+class KundaliMatch(Base):
     """
-    Stores derived astrology from a KundaliCore.
-
-    This includes:
-    - Doshas
-    - Yogas
-    - Strengths of planets and houses
-    - High-level summaries
-
-    This data is RECOMPUTABLE and VERSIONABLE.
+    Stores Kundali Milan (compatibility matching) results.
+    
+    References two KundaliCore entries and stores the Ashta Koot score.
     """
 
-    __tablename__ = "kundali_derived"
+    __tablename__ = "kundali_matches"
 
     # ─────────────────────────────────────────────
     # Primary Key
@@ -39,10 +41,28 @@ class KundaliDerived(Base):
     )
 
     # ─────────────────────────────────────────────
-    # Source
+    # Ownership
     # ─────────────────────────────────────────────
 
-    kundali_core_id: Mapped[uuid.UUID] = mapped_column(
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    # ─────────────────────────────────────────────
+    # References to Kundalis
+    # ─────────────────────────────────────────────
+
+    boy_kundali_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("kundali_core.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    girl_kundali_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("kundali_core.id", ondelete="CASCADE"),
         nullable=False,
@@ -50,59 +70,37 @@ class KundaliDerived(Base):
     )
 
     # ─────────────────────────────────────────────
-    # Derived Data
+    # Matching Results
     # ─────────────────────────────────────────────
 
-    doshas: Mapped[dict] = mapped_column(
-        JSON,
+    total_score: Mapped[float] = mapped_column(
+        Float,
         nullable=False,
-        default=dict,
-        doc="Doshas like Mangal, Kaal Sarp, etc."
+        doc="Total Ashta Koot score"
     )
 
-    yogas: Mapped[dict] = mapped_column(
-        JSON,
+    max_score: Mapped[int] = mapped_column(
+        Integer,
         nullable=False,
-        default=dict,
-        doc="Detected yogas and combinations"
+        default=36,
+        doc="Maximum possible score (36)"
     )
 
-    planet_strengths: Mapped[dict] = mapped_column(
-        JSON,
+    verdict: Mapped[str] = mapped_column(
+        String(50),
         nullable=False,
-        default=dict,
-        doc="Planetary strengths"
+        doc="Matching verdict: Excellent/Good/Average/Below Average"
     )
 
-    house_strengths: Mapped[dict] = mapped_column(
+    factors: Mapped[dict] = mapped_column(
         JSON,
         nullable=False,
-        default=dict,
-        doc="House strengths"
-    )
-
-    summary: Mapped[dict] = mapped_column(
-        JSON,
-        nullable=False,
-        default=dict,
-        doc="High-level astrological summary"
-    )
-
-    koot_factors: Mapped[dict] = mapped_column(
-        JSON,
-        nullable=True,
-        default=dict,
-        doc="Ashta Koot factors: varna, vashya, yoni, gana, nadi, moon_lord, nakshatra_index"
+        doc="Detailed breakdown of all 8 Koot factors"
     )
 
     # ─────────────────────────────────────────────
     # Metadata
     # ─────────────────────────────────────────────
-
-    calculation_version: Mapped[str] = mapped_column(
-        nullable=False,
-        doc="Version of derived logic used"
-    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -114,31 +112,34 @@ class KundaliDerived(Base):
     # Relationships
     # ─────────────────────────────────────────────
 
-    kundali_core = relationship(
-        "KundaliCore",
-        backref="derived",
+    user = relationship(
+        "User",
+        backref="matches",
         lazy="selectin"
     )
 
-    __table_args__ = (
-        UniqueConstraint(
-            "kundali_core_id",
-            "calculation_version",
-            name="uq_kundali_derived_version"
-        ),
+    boy_kundali = relationship(
+        "KundaliCore",
+        foreign_keys=[boy_kundali_id],
+        lazy="selectin"
+    )
+
+    girl_kundali = relationship(
+        "KundaliCore",
+        foreign_keys=[girl_kundali_id],
+        lazy="selectin"
     )
 
     def to_dict(self) -> dict:
-        """
-        Convert the model to a dictionary for serialization.
-        """
+        """Convert to dictionary for serialization."""
         return {
             "id": str(self.id),
-            "kundali_core_id": str(self.kundali_core_id),
-            "doshas": self.doshas,
-            "yogas": self.yogas,
-            "planet_strengths": self.planet_strengths,
-            "house_strengths": self.house_strengths,
-            "calculation_version": self.calculation_version,
+            "user_id": str(self.user_id),
+            "boy_kundali_id": str(self.boy_kundali_id),
+            "girl_kundali_id": str(self.girl_kundali_id),
+            "total_score": self.total_score,
+            "max_score": self.max_score,
+            "verdict": self.verdict,
+            "factors": self.factors,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

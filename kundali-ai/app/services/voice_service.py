@@ -104,6 +104,7 @@ class VoiceService:
         kundali_chart,
         audio_bytes: bytes,
         language: str = "en",
+        match_context: Dict[str, Any] | None = None,
     ):
         """
         Stream voice interaction (SSE format).
@@ -146,7 +147,8 @@ class VoiceService:
             kundali_core_id=kundali_core_id,
             kundali_chart=kundali_chart,
             question=question_text,
-            language=language
+            language=language,
+            match_context=match_context,
         ):
             # Parse the router chunk (which is json: {"chunk": "..."})
             try:

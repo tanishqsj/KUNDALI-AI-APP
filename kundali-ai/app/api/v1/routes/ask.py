@@ -21,6 +21,7 @@ router = APIRouter()
 class AskRequest(BaseModel):
     kundali_core_id: UUID = Field(..., description="Kundali core identifier")
     question: str = Field(..., example="What does my career look like this year?")
+    match_id: UUID | None = Field(None, description="Optional match ID for compatibility questions")
 
 
 # ─────────────────────────────────────────────
@@ -68,8 +69,34 @@ async def ask_question(
     kundali_chart = kundali_core.to_domain()
 
     # ─────────────────────────────────────────────
-    # Route question
+    # Load Match Context (if match_id provided)
     # ─────────────────────────────────────────────
+    
+    match_context = None
+    if payload.match_id:
+        from app.persistence.repositories.kundali_match_repo import KundaliMatchRepository
+        match_repo = KundaliMatchRepository(session)
+        match_result = await match_repo.get_by_id(payload.match_id)
+        
+        if match_result:
+            # Load boy's kundali
+            boy_kundali = await repo.get_by_id(match_result.boy_kundali_id)
+            # Load girl's kundali
+            girl_kundali = await repo.get_by_id(match_result.girl_kundali_id)
+            
+            match_context = {
+                "match_details": {
+                    "boy_name": boy_kundali.birth_profile.name if boy_kundali and boy_kundali.birth_profile else "Boy",
+                    "girl_name": girl_kundali.birth_profile.name if girl_kundali and girl_kundali.birth_profile else "Girl",
+                    "total_score": match_result.total_score,
+                    "max_score": match_result.max_score,
+                    "percentage": ((match_result.total_score / match_result.max_score) * 100) if match_result.max_score else 0,
+                    "compatibility_rating": match_result.verdict,
+                    "factors": match_result.factors,
+                },
+                "boy_kundali": boy_kundali.to_domain() if boy_kundali else None,
+                "girl_kundali": girl_kundali.to_domain() if girl_kundali else None,
+            }
 
     # ─────────────────────────────────────────────
     # Route question (Streaming)
@@ -77,16 +104,7 @@ async def ask_question(
 
     router_service = QueryRouter()
 
-    # We default to streaming for AI
     from fastapi.responses import StreamingResponse
-    import json
-
-    # For now, let's assume we want to stream ONLY if it's an AI-capable query.
-    # But since we don't know yet if it's AI or Rules, we have a challenge.
-    # However, since we are OPTIMIZING for perceived latency, let's switch to a full stream approach.
-    # But wait, `stream_answer` in QueryRouter ONLY handles AI.
-    # We should detect intent or just use the AI stream method if we are sure it's AI.
-    # Given the app is "Ask AI", let's prioritize AI streaming.
     
     return StreamingResponse(
         router_service.stream_answer(
@@ -95,6 +113,7 @@ async def ask_question(
             kundali_core_id=payload.kundali_core_id,
             kundali_chart=kundali_chart,
             question=payload.question,
+            match_context=match_context,
         ),
         media_type="text/event-stream"
     )

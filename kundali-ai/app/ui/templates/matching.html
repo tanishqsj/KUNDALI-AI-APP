@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kundali Milan - Kundali AI</title>
+    <!-- Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@200;300;400;500;600&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        serif: ['"Playfair Display"', 'serif'],
+                        sans: ['"Outfit"', 'sans-serif'],
+                    },
+                    colors: {
+                        cosmic: {
+                            900: '#0B0B15',
+                            800: '#151525',
+                            accent: '#FFD700',
+                            purple: '#6D28D9',
+                            pink: '#EC4899'
+                        }
+                    },
+                    animation: {
+                        'spin-slow': 'spin 12s linear infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #050505;
+            color: #cbd5e1;
+            overflow-x: hidden;
+        }
+
+        /* Starfield Background */
+        #star-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: radial-gradient(circle at center, #1a1a2e 0%, #050505 100%);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .form-input {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            transition: all 0.3s;
+        }
+
+        .form-input:focus {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: #6D28D9;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(109, 40, 217, 0.2);
+        }
+
+        .score-circle {
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: conic-gradient(#8b5cf6 calc(var(--score-percent) * 1%), rgba(255, 255, 255, 0.05) 0);
+            position: relative;
+            box-shadow: 0 0 30px rgba(139, 92, 246, 0.2);
+        }
+
+        .score-circle::before {
+            content: '';
+            position: absolute;
+            width: 160px;
+            height: 160px;
+            background: #0B0B15;
+            /* Match card bg */
+            border-radius: 50%;
+        }
+
+        .score-value {
+            position: relative;
+            z-index: 1;
+        }
+
+        .nav-link {
+            position: relative;
+        }
+
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 1px;
+            bottom: -2px;
+            left: 0;
+            background-color: #F59E0B;
+            transition: width 0.3s;
+        }
+
+        .nav-link:hover::after {
+            width: 100%;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0f0f1a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col">
+    <!-- Starfield -->
+    <canvas id="star-canvas"></canvas>
+
+    <!-- Navigation -->
+    <nav class="fixed w-full z-50 bg-black/50 backdrop-blur-md border-b border-white/5 transition-all duration-300"
+        id="navbar">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <a href="index.html" class="flex items-center gap-2 group">
+                <div
+                    class="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center text-white text-xs shadow-lg group-hover:animate-spin-slow">
+                    ✦
+                </div>
+                <span class="text-xl font-serif font-bold text-white tracking-widest uppercase">Kundali AI</span>
+            </a>
+            <div class="flex gap-8 text-sm font-medium tracking-wide">
+                <a href="index.html" class="hover:text-amber-400 transition nav-link">Home</a>
+                <a href="create.html" class="hover:text-amber-400 transition nav-link">Create Chart</a>
+                <a href="ask.html" class="hover:text-amber-400 transition nav-link">Ask Stars</a>
+                <a href="matching.html" class="text-amber-400 nav-link">Milan</a>
+                <a href="report.html" class="hover:text-amber-400 transition nav-link">Reports</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto mt-24 px-4 pb-12 max-w-6xl flex-grow">
+        <!-- Loading State -->
+        <div id="loading" class="hidden text-center py-32">
+            <div
+                class="inline-block animate-spin rounded-full h-16 w-16 border-4 border-pink-500 border-t-transparent mb-6 shadow-[0_0_15px_rgba(236,72,153,0.5)]">
+            </div>
+            <p class="text-xl font-serif text-white">Harmonizing Energies...</p>
+        </div>
+
+        <!-- No Match Yet - Show Input Form -->
+        <div id="input-section">
+            <div class="text-center mb-12">
+                <h1 class="text-4xl md:text-5xl font-serif text-white mb-4">Cosmic Union</h1>
+                <p class="text-slate-400 max-w-2xl mx-auto">Analyze relationship compatibility through the ancient
+                    wisdom of Ashta Koot Milan.</p>
+            </div>
+
+            <!-- Input Form -->
+            <div class="glass-card rounded-2xl p-6 md:p-8 mb-8 relative overflow-hidden">
+                <!-- Background decoration -->
+                <div
+                    class="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-blue-900/10 via-transparent to-pink-900/10 pointer-events-none">
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 relative z-10">
+                    <!-- Boy's Details -->
+                    <div
+                        class="bg-blue-950/20 rounded-xl p-6 border border-blue-500/20 shadow-[0_0_20px_rgba(30,58,138,0.1)]">
+                        <div class="flex items-center gap-3 mb-6 border-b border-blue-500/20 pb-4">
+                            <span class="text-3xl">🤵</span>
+                            <div>
+                                <h3 class="font-bold text-white text-lg">Partner 1 (Boy)</h3>
+                                <p class="text-xs text-blue-300">Enter birth details</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-blue-300 uppercase tracking-wider mb-2">Full
+                                    Name</label>
+                                <input type="text" id="boy_name" class="w-full rounded-xl p-3 form-input"
+                                    placeholder="e.g. Rahul Sharma">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label
+                                        class="block text-xs font-bold text-blue-300 uppercase tracking-wider mb-2">Birth
+                                        Date</label>
+                                    <input type="date" id="boy_birth_date"
+                                        class="w-full rounded-xl p-3 form-input [color-scheme:dark]">
+                                </div>
+                                <div>
+                                    <label
+                                        class="block text-xs font-bold text-blue-300 uppercase tracking-wider mb-2">Birth
+                                        Time</label>
+                                    <input type="time" id="boy_birth_time"
+                                        class="w-full rounded-xl p-3 form-input [color-scheme:dark]">
+                                </div>
+                            </div>
+                            <div class="relative">
+                                <label class="block text-xs font-bold text-blue-300 uppercase tracking-wider mb-2">Birth
+                                    Place</label>
+                                <input type="text" id="boy_birth_place" class="w-full rounded-xl p-3 form-input"
+                                    placeholder="e.g. Mumbai, India" autocomplete="off">
+                                <div id="boy_suggestions"
+                                    class="absolute left-0 right-0 bg-[#0f0f1a] border border-white/10 rounded-b-lg shadow-xl z-20 max-h-40 overflow-y-auto hidden">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label
+                                        class="block text-xs font-bold text-blue-300 uppercase tracking-wider mb-2">Latitude</label>
+                                    <input type="number" step="any" id="boy_latitude"
+                                        class="w-full rounded-xl p-3 form-input text-slate-400" value="19.0760">
+                                </div>
+                                <div>
+                                    <label
+                                        class="block text-xs font-bold text-blue-300 uppercase tracking-wider mb-2">Longitude</label>
+                                    <input type="number" step="any" id="boy_longitude"
+                                        class="w-full rounded-xl p-3 form-input text-slate-400" value="72.8777">
+                                </div>
+                            </div>
+                            <input type="hidden" id="boy_timezone" value="Asia/Kolkata">
+                        </div>
+                    </div>
+
+                    <!-- Girl's Details -->
+                    <div
+                        class="bg-pink-950/20 rounded-xl p-6 border border-pink-500/20 shadow-[0_0_20px_rgba(131,24,67,0.1)]">
+                        <div class="flex items-center gap-3 mb-6 border-b border-pink-500/20 pb-4">
+                            <span class="text-3xl">👰</span>
+                            <div>
+                                <h3 class="font-bold text-white text-lg">Partner 2 (Girl)</h3>
+                                <p class="text-xs text-pink-300">Enter birth details</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-pink-300 uppercase tracking-wider mb-2">Full
+                                    Name</label>
+                                <input type="text" id="girl_name" class="w-full rounded-xl p-3 form-input"
+                                    placeholder="e.g. Priya Patel">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label
+                                        class="block text-xs font-bold text-pink-300 uppercase tracking-wider mb-2">Birth
+                                        Date</label>
+                                    <input type="date" id="girl_birth_date"
+                                        class="w-full rounded-xl p-3 form-input [color-scheme:dark]">
+                                </div>
+                                <div>
+                                    <label
+                                        class="block text-xs font-bold text-pink-300 uppercase tracking-wider mb-2">Birth
+                                        Time</label>
+                                    <input type="time" id="girl_birth_time"
+                                        class="w-full rounded-xl p-3 form-input [color-scheme:dark]">
+                                </div>
+                            </div>
+                            <div class="relative">
+                                <label class="block text-xs font-bold text-pink-300 uppercase tracking-wider mb-2">Birth
+                                    Place</label>
+                                <input type="text" id="girl_birth_place" class="w-full rounded-xl p-3 form-input"
+                                    placeholder="e.g. Delhi, India" autocomplete="off">
+                                <div id="girl_suggestions"
+                                    class="absolute left-0 right-0 bg-[#0f0f1a] border border-white/10 rounded-b-lg shadow-xl z-20 max-h-40 overflow-y-auto hidden">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label
+                                        class="block text-xs font-bold text-pink-300 uppercase tracking-wider mb-2">Latitude</label>
+                                    <input type="number" step="any" id="girl_latitude"
+                                        class="w-full rounded-xl p-3 form-input text-slate-400" value="28.6139">
+                                </div>
+                                <div>
+                                    <label
+                                        class="block text-xs font-bold text-pink-300 uppercase tracking-wider mb-2">Longitude</label>
+                                    <input type="number" step="any" id="girl_longitude"
+                                        class="w-full rounded-xl p-3 form-input text-slate-400" value="77.2090">
+                                </div>
+                            </div>
+                            <input type="hidden" id="girl_timezone" value="Asia/Kolkata">
+                        </div>
+                    </div>
+                </div>
+
+                <button id="matchBtn"
+                    class="w-full mt-8 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:scale-[1.01] text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-purple-900/50 border border-white/10 transition duration-300 flex justify-center items-center gap-2 text-lg group">
+                    <span class="filter">✨ Calculate Compatibility</span>
+                    <span class="group-hover:translate-x-1 transition">→</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results-section" class="hidden space-y-8">
+            <!-- Header -->
+            <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <h1 class="text-3xl md:text-4xl font-serif text-white tracking-wide">Compatibility Report</h1>
+                    <p class="text-slate-400 mt-1">Ashta Koot Analysis</p>
+                    <p class="text-xs text-slate-500 mt-2 font-mono">ID: <span id="matchIdDisplay"
+                            class="text-purple-400 font-bold"></span></p>
+                </div>
+                <div>
+                    <a href="#" id="newMatchBtn"
+                        class="inline-flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white font-bold py-2.5 px-6 rounded-xl transition text-sm border border-white/10">
+                        🔄 New Match
+                    </a>
+                </div>
+            </div>
+
+            <!-- Score Overview -->
+            <div class="glass-card rounded-2xl p-8">
+                <div class="flex flex-col md:flex-row items-center gap-12">
+                    <!-- Score Visualization -->
+                    <div class="score-circle flex-shrink-0" id="scoreCircle" style="--score-percent: 0">
+                        <div class="score-value text-center z-10">
+                            <span id="scoreValue"
+                                class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-purple-400 to-pink-400">0</span>
+                            <span class="text-xl text-slate-500 block">/ 36</span>
+                            <div id="percentage" class="text-xs text-slate-400 mt-1">0%</div>
+                        </div>
+                    </div>
+
+                    <!-- Verdict -->
+                    <div class="flex-1 text-center md:text-left">
+                        <div class="flex justify-center md:justify-start gap-4 mb-4">
+                            <span
+                                class="px-4 py-1.5 bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded-full text-sm font-bold"
+                                id="badgeBoy">Boy</span>
+                            <span class="text-slate-600">❤</span>
+                            <span
+                                class="px-4 py-1.5 bg-pink-500/10 text-pink-300 border border-pink-500/20 rounded-full text-sm font-bold"
+                                id="badgeGirl">Girl</span>
+                        </div>
+
+                        <h2 id="verdict" class="text-3xl font-serif text-white mb-2">Calculating...</h2>
+                        <p id="verdictDesc" class="text-slate-400 mb-6 max-w-lg leading-relaxed"></p>
+
+                        <div class="flex flex-wrap gap-3 justify-center md:justify-start">
+                            <a id="viewBoyKundali" href="#" target="_blank"
+                                class="px-4 py-2 bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 border border-blue-500/30 rounded-lg text-sm transition">
+                                👤 Boy's Chart
+                            </a>
+                            <a id="viewGirlKundali" href="#" target="_blank"
+                                class="px-4 py-2 bg-pink-900/30 hover:bg-pink-900/50 text-pink-300 border border-pink-500/30 rounded-lg text-sm transition">
+                                👰 Girl's Chart
+                            </a>
+                            <a id="askAI" href="#"
+                                class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/50 rounded-lg text-sm font-bold transition">
+                                💬 Ask AI Analysis
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Comparison -->
+            <div class="glass-card rounded-2xl overflow-hidden p-6">
+                <h2 class="text-xl font-bold text-white mb-6 border-b border-white/10 pb-4">🔮 Lagna Charts (D1)</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Boy Chart -->
+                    <div class="bg-blue-950/20 p-4 rounded-xl border border-blue-500/10">
+                        <h3 id="boyChartName" class="font-bold text-blue-300 text-center mb-4 font-serif">Boy's Chart
+                        </h3>
+                        <div id="boyInfoBubbles" class="flex flex-wrap justify-center gap-2 mb-6"></div>
+                        <div id="boyChartContainer" class="flex justify-center"></div>
+                    </div>
+
+                    <!-- Girl Chart -->
+                    <div class="bg-pink-950/20 p-4 rounded-xl border border-pink-500/10">
+                        <h3 id="girlChartName" class="font-bold text-pink-300 text-center mb-4 font-serif">Girl's Chart
+                        </h3>
+                        <div id="girlInfoBubbles" class="flex flex-wrap justify-center gap-2 mb-6"></div>
+                        <div id="girlChartContainer" class="flex justify-center"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed Breakdown -->
+            <div class="glass-card rounded-2xl overflow-hidden">
+                <div class="p-6 border-b border-white/10 bg-white/5">
+                    <h2 class="text-xl font-bold text-white">Ashta Koot Breakdown</h2>
+                </div>
+
+                <!-- Table Header -->
+                <div
+                    class="hidden md:grid grid-cols-7 gap-2 p-4 bg-black/20 text-slate-400 text-xs font-bold uppercase tracking-wider">
+                    <div class="col-span-1">Factor</div>
+                    <div class="text-center">Area</div>
+                    <div class="text-center">Boy</div>
+                    <div class="text-center">Girl</div>
+                    <div class="text-center">Max</div>
+                    <div class="text-center">Obtained</div>
+                    <div>Status</div>
+                </div>
+
+                <div id="factorsGrid" class="divide-y divide-white/5"></div>
+            </div>
+
+            <!-- Summary Actions -->
+            <div class="p-8 text-center">
+                <p class="text-slate-500 text-sm mb-4">Want a deeper analysis of this match?</p>
+                <a href="#" onclick="document.getElementById('askAI').click(); return false;"
+                    class="text-amber-400 hover:text-amber-300 underline underline-offset-4 decoration-white/20 hover:decoration-amber-400/50 transition">
+                    Talk to our Vedic AI Astrologer →
+                </a>
+            </div>
+
+        </div>
+        <div id="error" class="hidden mt-4 p-4 bg-red-900/20 border border-red-500/30 text-red-200 rounded-xl"></div>
+    </div>
+
+    <script>
+        const getApiBaseUrl = () => window.location.protocol === 'file:' ? 'http://127.0.0.1:8000' : '';
+        const API_BASE = getApiBaseUrl();
+
+        // ----------------------------------------------------
+        // Starfield
+        // ----------------------------------------------------
+        const canvas = document.getElementById('star-canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height, stars = [];
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            stars = [];
+            for (let i = 0; i < 80; i++) stars.push({
+                x: Math.random() * width, y: Math.random() * height,
+                size: Math.random() * 1.5, opacity: Math.random(),
+                speed: Math.random() * 0.05, direction: Math.random() > 0.5 ? 1 : -1
+            });
+        }
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            const gradient = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, width);
+            gradient.addColorStop(0, '#1a0b2e'); gradient.addColorStop(1, '#050505');
+            ctx.fillStyle = gradient; ctx.fillRect(0, 0, width, height);
+            stars.forEach(s => {
+                ctx.fillStyle = `rgba(255,255,255,${s.opacity})`;
+                ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2); ctx.fill();
+                s.opacity += s.direction * 0.01;
+                if (s.opacity > 1 || s.opacity < 0.2) s.direction *= -1;
+            });
+            requestAnimationFrame(draw);
+        }
+        window.addEventListener('resize', resize); resize(); draw();
+
+        // ----------------------------------------------------
+        // Logic
+        // ----------------------------------------------------
+
+        const factorIcons = { 'Varna': '🎓', 'Vashya': '🤝', 'Tara': '⭐', 'Yoni': '🦁', 'Graha Maitri': '🌙', 'Gana': '🎭', 'Bhakoot': '💰', 'Nadi': '🧬' };
+        const areaMap = { 'Varna': 'Work', 'Vashya': 'Dominance', 'Tara': 'Destiny', 'Yoni': 'Intimacy', 'Graha Maitri': 'Friendship', 'Gana': 'Temperament', 'Bhakoot': 'Love', 'Nadi': 'Health' };
+
+        const signMap = { "Aries": 1, "Taurus": 2, "Gemini": 3, "Cancer": 4, "Leo": 5, "Virgo": 6, "Libra": 7, "Scorpio": 8, "Sagittarius": 9, "Capricorn": 10, "Aquarius": 11, "Pisces": 12 };
+
+        function drawMilanChart(containerId, houses, planets, accentColor) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            const size = 260;
+            const ns = "http://www.w3.org/2000/svg";
+            const svg = document.createElementNS(ns, "svg");
+            svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+            svg.setAttribute("class", "w-full max-w-[260px]");
+
+            // BG
+            const bg = document.createElementNS(ns, "rect");
+            bg.setAttribute("width", size); bg.setAttribute("height", size);
+            bg.setAttribute("fill", "rgba(255,255,255,0.03)");
+            bg.setAttribute("rx", "12");
+            bg.setAttribute("stroke", accentColor);
+            bg.setAttribute("stroke-opacity", "0.3");
+            svg.appendChild(bg);
+
+            // Lines
+            const lines = [`0,0 ${size},${size}`, `0,${size} ${size},0`, `0,0 ${size},0 ${size},${size} 0,${size} 0,0`, `${size / 2},0 0,${size / 2} ${size / 2},${size} ${size},${size / 2} ${size / 2},0`];
+            lines.forEach(pts => {
+                const poly = document.createElementNS(ns, "polyline");
+                poly.setAttribute("points", pts);
+                poly.setAttribute("fill", "none");
+                poly.setAttribute("stroke", accentColor);
+                poly.setAttribute("stroke-opacity", "0.3");
+                svg.appendChild(poly);
+            });
+
+            // Houses & Planets
+            const pos = { 1: [0.5, 0.22], 2: [0.26, 0.1], 3: [0.1, 0.26], 4: [0.26, 0.5], 5: [0.1, 0.74], 6: [0.26, 0.9], 7: [0.5, 0.78], 8: [0.74, 0.9], 9: [0.9, 0.74], 10: [0.74, 0.5], 11: [0.9, 0.26], 12: [0.74, 0.1] };
+            const planetsByHouse = {}; for (let i = 1; i <= 12; i++) planetsByHouse[i] = [];
+            if (planets) Object.entries(planets).forEach(([pName, pData]) => { if (pData.house) planetsByHouse[pData.house].push(pName.substring(0, 2) + (pData.retrograde ? "ᴿ" : "")); });
+
+            for (let h = 1; h <= 12; h++) {
+                const [cx, cy] = [size * pos[h][0], size * pos[h][1]];
+                const signText = document.createElementNS(ns, "text");
+                signText.setAttribute("x", cx); signText.setAttribute("y", cy - 4);
+                signText.setAttribute("text-anchor", "middle"); signText.setAttribute("font-weight", "bold");
+                signText.setAttribute("font-size", "10"); signText.setAttribute("fill", "#F59E0B");
+                signText.textContent = houses ? (signMap[houses[h]] || "") : "";
+                svg.appendChild(signText);
+
+                planetsByHouse[h].forEach((p, idx) => {
+                    const pText = document.createElementNS(ns, "text");
+                    pText.setAttribute("x", cx); pText.setAttribute("y", cy + 6 + (idx * 9));
+                    pText.setAttribute("text-anchor", "middle"); pText.setAttribute("font-size", "9");
+                    pText.setAttribute("fill", "#E2E8F0");
+                    pText.textContent = p;
+                    svg.appendChild(pText);
+                });
+            }
+            container.appendChild(svg);
+        }
+
+        function renderInfoBubbles(containerId, details, colorClass) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            const bubbles = [
+                { label: 'Moon', value: details.moon_sign || '-' },
+                { label: 'Nakshatra', value: details.nakshatra ? details.nakshatra.split(' (')[0] : '-' },
+                { label: 'Nadi', value: details.nadi || '-' }
+            ];
+            bubbles.forEach(b => {
+                const div = document.createElement('div');
+                div.className = `flex flex-col items-center px-3 py-1 ${colorClass} rounded-lg border border-opacity-20`;
+                div.innerHTML = `<span class="text-[10px] uppercase tracking-wider opacity-70">${b.label}</span><span class="text-xs font-bold">${b.value}</span>`;
+                container.appendChild(div);
+            });
+        }
+
+        async function fetchKundaliCore(kundaliId) {
+            try {
+                const res = await fetch(`${API_BASE}/api/v1/kundali/${kundaliId}/core`);
+                if (!res.ok) return null;
+                return await res.json();
+            } catch (e) { return null; }
+        }
+
+        // City Search
+        function setupCitySearch(inputId, suggestionsId, latId, lonId, tzId) {
+            const input = document.getElementById(inputId);
+            const suggestions = document.getElementById(suggestionsId);
+            let debounceTimer;
+
+            input.addEventListener('input', () => {
+                clearTimeout(debounceTimer);
+                const query = input.value;
+                if (query.length < 2) { suggestions.classList.add('hidden'); return; }
+                debounceTimer = setTimeout(() => {
+                    fetch(`${API_BASE}/api/v1/locations/search?q=${encodeURIComponent(query)}`)
+                        .then(r => r.json())
+                        .then(data => {
+                            suggestions.innerHTML = '';
+                            if (!data || data.length === 0) { suggestions.classList.add('hidden'); return; }
+                            suggestions.classList.remove('hidden');
+                            data.forEach(city => {
+                                if (city.error) return;
+                                const div = document.createElement('div');
+                                div.textContent = city.display_name;
+                                div.className = 'p-3 text-sm cursor-pointer hover:bg-white/10 text-slate-300 hover:text-white transition';
+                                div.addEventListener('click', () => {
+                                    input.value = city.display_name;
+                                    document.getElementById(latId).value = city.latitude;
+                                    document.getElementById(lonId).value = city.longitude;
+                                    document.getElementById(tzId).value = city.timezone;
+                                    suggestions.classList.add('hidden');
+                                });
+                                suggestions.appendChild(div);
+                            });
+                        }).catch(console.error);
+                }, 300);
+            });
+            document.addEventListener('click', (e) => {
+                if (!input.contains(e.target) && !suggestions.contains(e.target)) suggestions.classList.add('hidden');
+            });
+        }
+        setupCitySearch('boy_birth_place', 'boy_suggestions', 'boy_latitude', 'boy_longitude', 'boy_timezone');
+        setupCitySearch('girl_birth_place', 'girl_suggestions', 'girl_latitude', 'girl_longitude', 'girl_timezone');
+
+        // Main Logic
+        function checkForExistingMatch() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const matchId = urlParams.get('id');
+            if (matchId) { loadMatchById(matchId); return; }
+            const cached = sessionStorage.getItem('kundali_match_result');
+            if (cached) try { displayResults(JSON.parse(cached)); } catch (e) { sessionStorage.removeItem('kundali_match_result'); }
+        }
+
+        async function loadMatchById(matchId) {
+            document.getElementById('input-section').classList.add('hidden');
+            document.getElementById('loading').classList.remove('hidden');
+            try {
+                const res = await fetch(`${API_BASE}/api/v1/matching/match/${matchId}`);
+                if (!res.ok) throw new Error('Match not found');
+                const data = await res.json();
+                sessionStorage.setItem('kundali_match_result', JSON.stringify(data));
+                displayResults(data);
+            } catch (err) {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('error').textContent = err.message;
+                document.getElementById('error').classList.remove('hidden');
+                document.getElementById('input-section').classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('matchBtn').addEventListener('click', async () => {
+            const errorDiv = document.getElementById('error'); errorDiv.classList.add('hidden');
+            const boy = { name: document.getElementById('boy_name').value, birth_date: document.getElementById('boy_birth_date').value, birth_time: document.getElementById('boy_birth_time').value, birth_place: document.getElementById('boy_birth_place').value, latitude: parseFloat(document.getElementById('boy_latitude').value), longitude: parseFloat(document.getElementById('boy_longitude').value), timezone: document.getElementById('boy_timezone').value };
+            const girl = { name: document.getElementById('girl_name').value, birth_date: document.getElementById('girl_birth_date').value, birth_time: document.getElementById('girl_birth_time').value, birth_place: document.getElementById('girl_birth_place').value, latitude: parseFloat(document.getElementById('girl_latitude').value), longitude: parseFloat(document.getElementById('girl_longitude').value), timezone: document.getElementById('girl_timezone').value };
+
+            if (!boy.name || !boy.birth_date || !boy.birth_time || !girl.name || !girl.birth_date || !girl.birth_time) { errorDiv.textContent = 'Please fill all fields'; errorDiv.classList.remove('hidden'); return; }
+
+            document.getElementById('input-section').classList.add('hidden'); document.getElementById('loading').classList.remove('hidden');
+            try {
+                const res = await fetch(`${API_BASE}/api/v1/matching/match`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ boy, girl }) });
+                if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+                const data = await res.json();
+                sessionStorage.setItem('kundali_match_result', JSON.stringify(data));
+                window.history.pushState({}, '', `matching.html?id=${data.match_id}`);
+                displayResults(data);
+            } catch (err) {
+                document.getElementById('loading').classList.add('hidden'); document.getElementById('input-section').classList.remove('hidden');
+                errorDiv.textContent = err.message; errorDiv.classList.remove('hidden');
+            }
+        });
+
+        function displayResults(data) {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('input-section').classList.add('hidden');
+            document.getElementById('results-section').classList.remove('hidden');
+
+            document.getElementById('matchIdDisplay').textContent = data.match_id;
+            document.getElementById('scoreCircle').style.setProperty('--score-percent', data.percentage);
+            document.getElementById('scoreValue').textContent = data.total_score;
+            document.getElementById('percentage').textContent = data.percentage + '%';
+            document.getElementById('verdict').textContent = data.verdict;
+
+            const vMap = { 'Excellent Match': 'A harmonious cosmic union.', 'Good Match': 'Favorable alignment.', 'Average Match': 'Good potential with effort.', 'Below Average': 'Challenging alignment.' };
+            document.getElementById('verdictDesc').textContent = vMap[data.verdict] || '';
+
+            document.getElementById('badgeBoy').textContent = data.boy_name;
+            document.getElementById('badgeGirl').textContent = data.girl_name;
+
+            document.getElementById('viewBoyKundali').href = `report.html?id=${data.boy_kundali_id}`;
+            document.getElementById('viewGirlKundali').href = `report.html?id=${data.girl_kundali_id}`;
+            document.getElementById('askAI').href = `ask.html?match_id=${data.match_id}`;
+
+            document.getElementById('boyChartName').textContent = data.boy_name;
+            document.getElementById('girlChartName').textContent = data.girl_name;
+
+            const findF = (n) => data.factors.find(f => f.name === n);
+            renderInfoBubbles('boyInfoBubbles', { moon_sign: findF('Bhakoot')?.boy_value, nakshatra: findF('Tara')?.boy_value, nadi: findF('Nadi')?.boy_value }, 'bg-blue-900/30 text-blue-200 border-blue-500/30');
+            renderInfoBubbles('girlInfoBubbles', { moon_sign: findF('Bhakoot')?.girl_value, nakshatra: findF('Tara')?.girl_value, nadi: findF('Nadi')?.girl_value }, 'bg-pink-900/30 text-pink-200 border-pink-500/30');
+
+            (async () => {
+                const [boyCore, girlCore] = await Promise.all([fetchKundaliCore(data.boy_kundali_id), fetchKundaliCore(data.girl_kundali_id)]);
+                if (boyCore) drawMilanChart('boyChartContainer', boyCore.houses, boyCore.planets, '#60a5fa');
+                if (girlCore) drawMilanChart('girlChartContainer', girlCore.houses, girlCore.planets, '#f472b6');
+            })();
+
+            const factorsGrid = document.getElementById('factorsGrid');
+            factorsGrid.innerHTML = '';
+            data.factors.forEach(f => {
+                const percent = (f.score / f.max) * 100;
+                const color = percent >= 70 ? 'text-green-400' : percent >= 40 ? 'text-yellow-400' : 'text-red-400';
+                const row = document.createElement('div');
+                row.className = 'grid grid-cols-2 md:grid-cols-7 gap-2 p-4 hover:bg-white/5 transition items-center text-sm';
+                row.innerHTML = `
+                    <div class="col-span-2 md:col-span-1 flex items-center gap-2"><span class="text-xl">${factorIcons[f.name]}</span> <span class="font-bold text-slate-200">${f.name}</span></div>
+                    <div class="hidden md:block text-slate-400 text-center">${areaMap[f.name] || '-'}</div>
+                    <div class="text-center"><span class="md:hidden text-xs text-slate-500 block">Boy</span><span class="text-blue-300 font-medium">${f.boy_value || '-'}</span></div>
+                    <div class="text-center"><span class="md:hidden text-xs text-slate-500 block">Girl</span><span class="text-pink-300 font-medium">${f.girl_value || '-'}</span></div>
+                    <div class="text-center text-slate-500 font-mono">${f.max}</div>
+                    <div class="text-center font-bold font-mono text-white">${f.score}</div>
+                    <div class="text-center ${color} font-bold text-xs uppercase tracking-wider">${percent >= 50 ? 'Good' : 'Low'}</div>
+                `;
+                factorsGrid.appendChild(row);
+            });
+        }
+
+        checkForExistingMatch();
+        // New Match Button logic
+        document.getElementById('newMatchBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            sessionStorage.removeItem('kundali_match_result');
+            window.location.href = 'matching.html'; // Clear ID from URL
+        });
+    </script>
+</body>
+
+</html>

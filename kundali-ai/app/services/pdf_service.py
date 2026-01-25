@@ -13,10 +13,23 @@ import logging, os
 logger = logging.getLogger(__name__)
 
 class KundaliPDF(FPDF):
+    """Premium styled PDF with footer and accent colors."""
+    
+    # Brand colors (Indigo theme)
+    INDIGO_600 = (79, 70, 229)      # Primary
+    INDIGO_100 = (224, 231, 255)    # Light bg
+    SLATE_800 = (30, 41, 59)        # Dark text
+    SLATE_500 = (100, 116, 139)     # Muted text
+    SLATE_100 = (241, 245, 249)     # Table header bg
+    GREEN_100 = (220, 252, 231)     # Positive
+    RED_100 = (254, 226, 226)       # Warning
+    
     def footer(self):
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
-        self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
+        self.set_text_color(100, 116, 139)  # Slate-500
+        self.cell(0, 10, f'Page {self.page_no()} | Kundali AI - Your Vedic Astrology Companion', 0, 0, 'C')
+        self.set_text_color(0, 0, 0)  # Reset
 
 class PDFService:
     """
@@ -190,14 +203,30 @@ class PDFService:
         logger.debug("Core data: %s", core)
         logger.debug("Meta data: %s", meta)
         
-        # --- Header ---
-        pdf.set_font('Arial', 'B', 24)
-        pdf.cell(0, 20, labels['title'], 0, 1, 'C')
+        # --- Premium Header ---
+        # Draw accent bar at top
+        pdf.set_fill_color(79, 70, 229)  # Indigo-600
+        pdf.rect(0, 0, 210, 8, 'F')
         
-        pdf.set_font('Arial', 'I', 10)
-        pdf.cell(0, 10, f"Generated on: {meta.get('generated_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}", 0, 1, 'C')
-        pdf.line(10, 35, 200, 35)
-        pdf.ln(10)
+        pdf.set_font('Arial', 'B', 28)
+        pdf.set_text_color(30, 41, 59)  # Slate-800
+        pdf.ln(15)
+        pdf.cell(0, 15, labels['title'], 0, 1, 'C')
+        
+        # Subtitle
+        pdf.set_font('Arial', '', 10)
+        pdf.set_text_color(100, 116, 139)  # Slate-500
+        pdf.cell(0, 6, "Comprehensive Vedic Astrology Analysis", 0, 1, 'C')
+        pdf.cell(0, 6, f"Generated: {meta.get('generated_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}", 0, 1, 'C')
+        
+        # Decorative line
+        pdf.set_draw_color(79, 70, 229)  # Indigo-600
+        pdf.set_line_width(0.5)
+        pdf.line(50, 45, 160, 45)
+        pdf.set_draw_color(0, 0, 0)  # Reset
+        pdf.set_line_width(0.2)
+        pdf.set_text_color(0, 0, 0)  # Reset
+        pdf.ln(15)
         
         if not core:
             pdf.set_font('Arial', '', 12)
@@ -212,9 +241,14 @@ class PDFService:
         # Use the top-level kundali object for fresher data if available
         kundali_data = report_context.get('kundali', core)
         if 'ascendant' in kundali_data and 'planets' in kundali_data:
-            pdf.set_font('Arial', 'B', 16)
+            # Premium section header with accent
+            pdf.set_fill_color(224, 231, 255)  # Indigo-100
+            pdf.rect(10, pdf.get_y(), 190, 10, 'F')
+            pdf.set_font('Arial', 'B', 14)
+            pdf.set_text_color(79, 70, 229)  # Indigo-600
             pdf.cell(0, 10, labels['astro_particulars'], 0, 1)
-            pdf.ln(2)
+            pdf.set_text_color(0, 0, 0)  # Reset
+            pdf.ln(4)
             
             asc = core['ascendant']
             moon = core['planets'].get('Moon', {})
@@ -227,13 +261,15 @@ class PDFService:
             moon_lord = self._get_sign_lord(moon_sign)
             moon_nak = moon.get('nakshatra') or '-'
             
-            # Table Header
-            pdf.set_font('Arial', 'B', 11)
-            pdf.set_fill_color(240, 240, 240)
+            # Premium table styling
+            pdf.set_font('Arial', 'B', 10)
+            pdf.set_fill_color(79, 70, 229)  # Indigo-600
+            pdf.set_text_color(255, 255, 255)  # White
             pdf.cell(50, 8, "Feature", 1, 0, 'L', True)
             pdf.cell(45, 8, "Sign", 1, 0, 'C', True)
             pdf.cell(45, 8, "Lord", 1, 0, 'C', True)
             pdf.cell(50, 8, "Nakshatra", 1, 1, 'C', True)
+            pdf.set_text_color(0, 0, 0)  # Reset
             
             pdf.set_font('Arial', '', 11)
             
@@ -379,30 +415,45 @@ class PDFService:
 
         # --- Planetary Positions (Table) ---
         if 'planets' in core:
-            pdf.set_font('Arial', 'B', 16)
+            # Premium section header
+            pdf.set_fill_color(224, 231, 255)  # Indigo-100
+            pdf.rect(10, pdf.get_y(), 190, 10, 'F')
+            pdf.set_font('Arial', 'B', 14)
+            pdf.set_text_color(79, 70, 229)  # Indigo-600
             pdf.cell(0, 10, labels['planetary_positions'], 0, 1)
-            pdf.ln(2)
+            pdf.set_text_color(0, 0, 0)  # Reset
+            pdf.ln(4)
             
-            # Headers
-            pdf.set_font('Arial', 'B', 11)
-            pdf.set_fill_color(230, 230, 230)
+            # Premium table headers
+            pdf.set_font('Arial', 'B', 10)
+            pdf.set_fill_color(79, 70, 229)  # Indigo-600
+            pdf.set_text_color(255, 255, 255)  # White
             pdf.cell(30, 10, "Planet", 1, 0, 'C', True)
             pdf.cell(30, 10, "Sign", 1, 0, 'C', True)
             pdf.cell(25, 10, "Degree", 1, 0, 'C', True)
             pdf.cell(75, 10, "Nakshatra", 1, 0, 'C', True)
             pdf.cell(20, 10, "House", 1, 1, 'C', True)
+            pdf.set_text_color(0, 0, 0)  # Reset
             
-            # Rows
-            pdf.set_font('Arial', '', 11)
+            # Alternating row colors
+            pdf.set_font('Arial', '', 10)
+            row_idx = 0
             for planet, details in core['planets'].items():
+                # Alternate row background
+                if row_idx % 2 == 0:
+                    pdf.set_fill_color(248, 250, 252)  # Slate-50
+                else:
+                    pdf.set_fill_color(255, 255, 255)  # White
+                
                 p_name = planet.title()
                 if details.get('retrograde'):
                     p_name += " (R)"
-                pdf.cell(30, 10, p_name, 1, 0, 'C')
-                pdf.cell(30, 10, str(details.get('sign') or '-'), 1, 0, 'C')
-                pdf.cell(25, 10, f"{details.get('degree', 0):.2f}°", 1, 0, 'C')
-                pdf.cell(75, 10, str(details.get('nakshatra') or '-'), 1, 0, 'C')
-                pdf.cell(20, 10, str(details.get('house') or '-'), 1, 1, 'C')
+                pdf.cell(30, 10, p_name, 1, 0, 'C', True)
+                pdf.cell(30, 10, str(details.get('sign') or '-'), 1, 0, 'C', True)
+                pdf.cell(25, 10, f"{details.get('degree', 0):.2f}", 1, 0, 'C', True)
+                pdf.cell(75, 10, str(details.get('nakshatra') or '-'), 1, 0, 'C', True)
+                pdf.cell(20, 10, str(details.get('house') or '-'), 1, 1, 'C', True)
+                row_idx += 1
             
             pdf.ln(10)
 
@@ -866,27 +917,36 @@ class PDFService:
 
     def _draw_north_indian_chart(self, pdf, x, y, size, houses, planets):
         """
-        Draws a North Indian style (Diamond) chart.
+        Draws a premium North Indian style (Diamond) chart with filled background.
         """
-        # 1. Draw Geometry
-        # Outer Square
+        # 1. Draw Background with subtle fill
+        pdf.set_fill_color(248, 250, 252)  # Slate-50 background
+        pdf.rect(x, y, size, size, 'F')
+        
+        # Draw border
+        pdf.set_draw_color(199, 210, 254)  # Indigo-200
+        pdf.set_line_width(0.8)
         pdf.rect(x, y, size, size)
+        
+        # 2. Draw Geometry with Indigo lines
+        pdf.set_draw_color(165, 180, 252)  # Indigo-300
+        pdf.set_line_width(0.5)
         
         # Diagonals
         pdf.line(x, y, x + size, y + size)
         pdf.line(x, y + size, x + size, y)
         
         # Midpoint connectors (Diamond)
-        # Top-Mid to Left-Mid
         pdf.line(x + size/2, y, x, y + size/2)
-        # Left-Mid to Bottom-Mid
         pdf.line(x, y + size/2, x + size/2, y + size)
-        # Bottom-Mid to Right-Mid
         pdf.line(x + size/2, y + size, x + size, y + size/2)
-        # Right-Mid to Top-Mid
         pdf.line(x + size, y + size/2, x + size/2, y)
+        
+        # Reset drawing color
+        pdf.set_draw_color(0, 0, 0)
+        pdf.set_line_width(0.2)
 
-        # 2. Prepare Data
+        # 3. Prepare Data
         sign_map = {
             "Aries": 1, "Taurus": 2, "Gemini": 3, "Cancer": 4,
             "Leo": 5, "Virgo": 6, "Libra": 7, "Scorpio": 8,

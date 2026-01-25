@@ -201,6 +201,7 @@ class AIService:
         divisionals: List[Any] | None = None,
         rag_context: List[str] | None = None,
         language: str = "English",
+        match_context: Dict[str, Any] | None = None,
     ):
         """
         Stream the AI answer token by token.
@@ -235,6 +236,48 @@ class AIService:
             explanations=explanations,
             transits=transits,
         )
+
+        # Match Context Injection
+        if match_context:
+            md = match_context.get("match_details", {})
+            bk = match_context.get("boy_kundali")
+            gk = match_context.get("girl_kundali")
+            
+            match_str = (
+                "\n\n💕 **KUNDALI MATCHING CONTEXT** 💕\n"
+                "You are answering a question specifically about the compatibility between two individuals.\n"
+                "Use the following comprehensive match data to inform your answer:\n\n"
+                f"**Match Overview:**\n"
+                f"- Boy: {md.get('boy_name', 'Boy')}\n"
+                f"- Girl: {md.get('girl_name', 'Girl')}\n"
+                f"- Total Score (Guna Milan): {md.get('total_score')}/{md.get('max_score')} ({md.get('percentage')}%) - {md.get('compatibility_rating')}\n\n"
+                "**Guna Breakdown:**\n"
+            )
+            
+            if md.get("factors"):
+                 for f in md.get("factors", []):
+                     match_str += f"- {f.get('name')}: {f.get('obtained')}/{f.get('total')} ({f.get('description')})\n"
+
+            # Add basic planetary details for cross-aspect analysis
+            if bk and gk:
+                 match_str += "\n**Boy's Planetary Positions:**\n"
+                 for pname, p in bk.planets.items():
+                     match_str += f"- {pname}: {p.sign} in House {p.house}\n"
+                 
+                 match_str += "\n**Girl's Planetary Positions:**\n"
+                 for pname, p in gk.planets.items():
+                     match_str += f"- {pname}: {p.sign} in House {p.house}\n"
+
+            match_str += (
+                "\n\n**GUIDELINES FOR MATCHING QUESTIONS:**\n"
+                "1. If the score is low but planetary friendship is high, mention that.\n"
+                "2. Check for Mangal Dosha cancellation if relevant.\n"
+                "3. Focus on Bhakoot and Nadi dosha if scores are 0.\n"
+                "4. Provide a balanced view considering both Guna Milan and planetary alignment.\n"
+                "5. Start your answer by acknowledging the specific couple.\n"
+            )
+            
+            prompt["system"] += match_str
 
         # RAG Injection
         if rag_context:
