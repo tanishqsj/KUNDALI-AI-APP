@@ -4,33 +4,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ask AI Astrologer</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    <title>Ask the Stars - Kundali AI</title>
+    <!-- Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@200;300;400;500;600&display=swap"
         rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        serif: ['"Playfair Display"', 'serif'],
+                        sans: ['"Outfit"', 'sans-serif'],
+                    },
+                    colors: {
+                        cosmic: {
+                            900: '#0B0B15',
+                            800: '#151525',
+                            accent: '#FFD700',
+                            purple: '#6D28D9',
+                            pink: '#EC4899'
+                        }
+                    },
+                    animation: {
+                        'spin-slow': 'spin 12s linear infinite',
+                        'pulse-glow': 'pulseGlow 2s infinite',
+                    },
+                    keyframes: {
+                        pulseGlow: {
+                            '0%, 100%': { boxShadow: '0 0 5px rgba(236, 72, 153, 0.5)' },
+                            '50%': { boxShadow: '0 0 20px rgba(236, 72, 153, 0.8)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Outfit', sans-serif;
+            background-color: #050505;
+            color: #cbd5e1;
+            overflow-x: hidden;
         }
 
-        .recording-pulse {
-            animation: pulse-red 1.5s infinite;
+        /* Starfield Background */
+        #star-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: radial-gradient(circle at center, #1a1a2e 0%, #050505 100%);
         }
 
-        @keyframes pulse-red {
-            0% {
-                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
-            }
-
-            70% {
-                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
-            }
-
-            100% {
-                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
-            }
+        .glass-panel {
+            background: rgba(20, 20, 35, 0.6);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
         }
 
+        .glass-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            transition: all 0.3s;
+        }
+
+        .glass-input:focus {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #a855f7;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2);
+        }
+
+        /* Chat Scrollbar */
         #chatBox::-webkit-scrollbar {
             width: 6px;
         }
@@ -40,15 +91,18 @@
         }
 
         #chatBox::-webkit-scrollbar-thumb {
-            background-color: #cbd5e1;
-            background-color: #cbd5e1;
-            border-radius: 20px;
+            background: #333;
+            border-radius: 10px;
         }
 
-        /* Typewriter Cursor */
+        #chatBox::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Typing Cursor */
         .typing-cursor::after {
             content: '▋';
-            color: #6366f1;
+            color: #a855f7;
             animation: blink 1s infinite;
         }
 
@@ -63,878 +117,377 @@
             width: 100%;
             height: 40px;
             border-radius: 8px;
-            background: rgba(99, 102, 241, 0.05);
+            background: rgba(0, 0, 0, 0.2);
         }
 
-        /* Suggestion Chips */
-        .suggestion-chip {
-            animation: fade-in-up 0.5s ease-out forwards;
-            opacity: 0;
-            transform: translateY(10px);
+        /* Nav Link */
+        .nav-link {
+            position: relative;
         }
 
-        @keyframes fade-in-up {
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 1px;
+            bottom: -2px;
+            left: 0;
+            background-color: #F59E0B;
+            transition: width 0.3s;
+        }
+
+        .nav-link:hover::after {
+            width: 100%;
+        }
+
+        /* Message Bubbles */
+        .msg-user {
+            background: linear-gradient(135deg, #6D28D9 0%, #4C1D95 100%);
+            color: white;
+            border-bottom-right-radius: 2px;
+            box-shadow: 0 4px 15px rgba(109, 40, 217, 0.3);
+        }
+
+        .msg-ai {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            color: #e2e8f0;
+            border-bottom-left-radius: 2px;
         }
     </style>
 </head>
 
-<body class="bg-slate-50 min-h-screen flex flex-col">
-    <nav class="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div class="container mx-auto px-4 py-3 flex flex-wrap justify-between items-center">
-            <a href="index.html" class="text-xl font-extrabold tracking-tight flex items-center gap-2 text-indigo-600">
-                <span class="bg-indigo-600 text-white p-1.5 rounded-lg text-sm">🔮</span> KUNDALI AI
+<body class="min-h-screen flex flex-col">
+    <canvas id="star-canvas"></canvas>
+
+    <!-- Navigation -->
+    <nav class="fixed w-full z-50 bg-black/50 backdrop-blur-md border-b border-white/5 transition-all duration-300">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <a href="index.html" class="flex items-center gap-2 group">
+                <div
+                    class="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center text-white text-xs shadow-lg group-hover:animate-spin-slow">
+                    ✦</div>
+                <span class="text-xl font-serif font-bold text-white tracking-widest uppercase">Kundali AI</span>
             </a>
-            <div class="flex gap-6 text-sm font-semibold text-slate-600 overflow-x-auto">
-                <a href="index.html" class="hover:text-indigo-600 transition">Home</a>
-                <a href="create.html" class="hover:text-indigo-600 transition">Create</a>
-                <a href="ask.html" class="text-indigo-600 border-b-2 border-indigo-600 pb-1">Ask AI</a>
-                <a href="report.html" class="hover:text-indigo-600 transition">Reports</a>
+            <div class="flex gap-8 text-sm font-medium tracking-wide">
+                <a href="index.html" class="hover:text-amber-400 transition nav-link">Home</a>
+                <a href="create.html" class="hover:text-amber-400 transition nav-link">Create Chart</a>
+                <a href="ask.html" class="text-amber-400 nav-link">Ask Stars</a>
+                <a href="matching.html" class="hover:text-amber-400 transition nav-link">Milan</a>
+                <a href="report.html" class="hover:text-amber-400 transition nav-link">Reports</a>
             </div>
         </div>
     </nav>
 
-    <div class="container mx-auto mt-6 p-4 max-w-4xl flex-grow flex flex-col">
-        <div
-            class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex-grow flex flex-col h-[80vh] relative">
+    <div class="container mx-auto mt-20 p-4 max-w-4xl flex-grow flex flex-col h-[calc(100vh-80px)]">
 
-            <div class="mb-4 border-b pb-4">
-                <div class="flex items-center gap-2">
-                    <label
-                        class="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Kundali
-                        ID:</label>
-                    <input type="text" id="kundaliId"
-                        class="w-full text-xs font-mono bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 text-slate-500 transition"
-                        placeholder="Enter ID or create one first...">
+        <!-- Chat Interface Container -->
+        <div class="glass-panel rounded-2xl flex-grow flex flex-col overflow-hidden shadow-2xl relative">
+
+            <!-- Context Bar -->
+            <div
+                class="p-4 border-b border-white/10 bg-black/20 flex items-center justify-between backdrop-blur-sm z-10">
+                <div class="flex items-center gap-3 w-full">
+                    <span class="text-xl">🔮</span>
+                    <div class="flex-grow">
+                        <input type="text" id="kundaliId"
+                            class="w-full bg-transparent border-none text-xs font-mono text-purple-300 placeholder-slate-600 focus:ring-0 p-0"
+                            placeholder="Enter Kundali ID..." autocomplete="off">
+                    </div>
+                </div>
+                <div class="text-[10px] text-slate-500 uppercase tracking-widest font-bold hidden md:block">Vedic AI
+                    Astrologer</div>
+            </div>
+
+            <!-- Messages Area -->
+            <div id="chatBox" class="flex-grow overflow-y-auto p-4 md:p-6 space-y-6 relative">
+                <!-- Background Logo -->
+                <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03]">
+                    <div class="w-64 h-64 border-8 border-current rounded-full"></div>
+                </div>
+
+                <div class="text-center text-slate-500 text-sm mt-10 animate-fade-in">
+                    <div
+                        class="w-16 h-16 bg-gradient-to-tr from-purple-900/50 to-pink-900/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/10 shadow-[0_0_30px_rgba(168,85,247,0.2)]">
+                        <span class="text-3xl">✨</span>
+                    </div>
+                    <p class="font-serif text-lg text-white mb-2">Greetings, Seeker.</p>
+                    <p class="opacity-75 max-w-xs mx-auto">I am aligned with your cosmic chart. Ask me about your
+                        destiny, career, or relationships.</p>
                 </div>
             </div>
 
-            <div id="chatBox"
-                class="flex-grow overflow-y-auto p-4 space-y-6 bg-slate-50 rounded-xl mb-4 border border-slate-100">
-                <div class="text-center text-slate-400 text-sm mt-10">
-                    <p class="text-2xl mb-2">👋</p>
-                    <p class="font-medium text-slate-500">I am your AI Astrologer.</p>
-                    <p class="mt-2 opacity-75">Type or speak your question below.</p>
+            <!-- Input Area -->
+            <div class="p-4 bg-black/20 border-t border-white/10 relative z-20">
+                <form id="askForm" class="flex gap-3 items-end relative">
+                    <button type="button" id="voiceBtn" title="Hold to Record"
+                        class="p-4 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/10 transition-all duration-200 group">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 group-hover:scale-110 transition"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                        </svg>
+                    </button>
+
+                    <div class="flex-grow relative">
+                        <textarea id="question" rows="1"
+                            class="w-full rounded-xl bg-white/5 border border-white/10 p-4 pr-12 text-white placeholder-slate-500 focus:bg-white/10 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 focus:outline-none transition resize-none glass-input overflow-hidden"
+                            placeholder="Type your question..."
+                            oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'"></textarea>
+                    </div>
+
+                    <button type="submit"
+                        class="p-4 bg-gradient-to-br from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] transition transform hover:-translate-y-0.5 font-bold">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </button>
+                </form>
+
+                <!-- Recording Status Overlay -->
+                <div id="recordingStatus"
+                    class="hidden absolute -top-16 left-1/2 transform -translate-x-1/2 bg-red-500/90 backdrop-blur-md text-white px-6 py-2 rounded-full text-xs font-bold shadow-[0_0_20px_rgba(239,68,68,0.6)] items-center gap-2 animate-pulse-glow border border-red-400/50">
+                    <span class="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                    Listening to the cosmos...
                 </div>
-            </div>
-
-            <form id="askForm" class="flex gap-2 items-center relative">
-                <input type="text" id="question"
-                    class="flex-grow rounded-xl border border-slate-200 p-4 pl-4 pr-12 focus:ring-2 focus:ring-indigo-500 focus:outline-none shadow-sm bg-white transition"
-                    placeholder="Ask about your future..." autocomplete="off">
-
-                <button type="button" id="voiceBtn"
-                    class="bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800 p-4 rounded-xl transition-all duration-200 flex items-center justify-center border border-slate-200"
-                    title="Hold to Record">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
-                        stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                    </svg>
-                </button>
-
-                <button type="submit"
-                    class="bg-slate-900 text-white px-6 py-4 rounded-xl hover:bg-slate-800 transition font-bold shadow-md flex items-center gap-2">
-                    <span>Send</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
-                        stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                    </svg>
-                </button>
-            </form>
-
-            <div id="recordingStatus"
-                class="hidden absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg items-center gap-2 recording-pulse z-10">
-                <span class="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                Listening... (Click mic to stop)
             </div>
         </div>
     </div>
 
     <script>
-        const getApiBaseUrl = () => {
-            if (window.location.protocol === 'file:') return 'http://127.0.0.1:8000';
-            return '';
-        };
+        const getApiBaseUrl = () => window.location.protocol === 'file:' ? 'http://127.0.0.1:8000' : '';
         const API_BASE = getApiBaseUrl();
 
-        const storedId = localStorage.getItem('kundali_core_id');
-        if (storedId) document.getElementById('kundaliId').value = storedId;
+        // Starfield
+        const canvas = document.getElementById('star-canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height, stars = [];
+        const resize = () => { width = window.innerWidth; height = window.innerHeight; canvas.width = width; canvas.height = height; stars = Array(100).fill().map(() => ({ x: Math.random() * width, y: Math.random() * height, size: Math.random() * 1.5, opacity: Math.random(), speed: Math.random() * 0.05 })); };
+        const draw = () => { ctx.clearRect(0, 0, width, height); const g = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, width); g.addColorStop(0, '#1a0b2e'); g.addColorStop(1, '#050505'); ctx.fillStyle = g; ctx.fillRect(0, 0, width, height); stars.forEach(s => { ctx.fillStyle = `rgba(255,255,255,${s.opacity})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2); ctx.fill(); s.opacity += 0.005 * (Math.random() > .5 ? 1 : -1); if (s.opacity < 0 || s.opacity > 1) s.opacity = Math.random(); }); requestAnimationFrame(draw); };
+        window.addEventListener('resize', resize); resize(); draw();
+
+        // Logic
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlKundaliId = urlParams.get('kundali_id') || urlParams.get('id');
+        const urlMatchId = urlParams.get('match_id');
+
+        if (urlMatchId) {
+            (async () => {
+                try {
+                    const res = await fetch(`${API_BASE}/api/v1/matching/match/${urlMatchId}`);
+                    if (res.ok) {
+                        const m = await res.json();
+                        document.getElementById('kundaliId').value = m.boy_kundali_id; // Default to boy for context
+                        localStorage.setItem('kundali_core_id', m.boy_kundali_id);
+                        document.getElementById('chatBox').innerHTML = `
+                            <div class="text-center text-sm bg-purple-900/30 border border-purple-500/30 p-4 rounded-xl backdrop-blur-md mx-auto max-w-sm">
+                                <p class="font-bold text-purple-300 mb-2">💕 Compatibility Context Active</p>
+                                <p class="text-white"><span class="text-blue-300">${m.boy_name}</span> & <span class="text-pink-300">${m.girl_name}</span></p>
+                                <div class="mt-2 text-xs font-mono text-slate-400">Match Score: ${m.total_score}/36</div>
+                            </div>`;
+                    }
+                } catch (e) { console.error(e); }
+            })();
+        } else if (urlKundaliId) {
+            document.getElementById('kundaliId').value = urlKundaliId;
+            localStorage.setItem('kundali_core_id', urlKundaliId);
+        } else {
+            const stored = localStorage.getItem('kundali_core_id');
+            if (stored) document.getElementById('kundaliId').value = stored;
+        }
 
         const chatBox = document.getElementById('chatBox');
-        const voiceBtn = document.getElementById('voiceBtn');
-        const statusBadge = document.getElementById('recordingStatus');
 
-        // --- 1. Text Polisher Function ---
         function formatAiText(text) {
             if (!text) return '';
-
-            // Bold: **text** -> <strong>text</strong>
-            let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-indigo-900">$1</strong>');
-
-            // Italic: *text* -> <em>text</em>
-            formatted = formatted.replace(/\*(.*?)\*/g, '<em class="text-slate-600">$1</em>');
-
-            // Process lines for Lists & Paragraphs
-            return formatted.split('\n').map(line => {
-                const trimmed = line.trim();
-
-                // Bullet Points
-                if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-                    return `<div class="flex items-start gap-2 mb-2 ml-1">
-                        <span class="text-indigo-500 font-bold mt-1">•</span>
-                        <span class="text-slate-700 leading-relaxed">${trimmed.replace(/^[\-\*]\s*/, '')}</span>
-                    </div>`;
-                }
-
-                // Numbered Lists
-                if (/^\d+\./.test(trimmed)) {
-                    const number = trimmed.match(/^\d+\./)[0];
-                    return `<div class="flex items-start gap-2 mb-2 ml-1">
-                        <span class="font-bold text-slate-500 text-xs mt-1.5">${number}</span>
-                        <span class="text-slate-700 leading-relaxed">${trimmed.replace(/^\d+\.\s*/, '')}</span>
-                    </div>`;
-                }
-
-                // Empty lines
-                if (!trimmed) return '<div class="h-3"></div>';
-
-                // Regular Paragraphs
-                return `<p class="mb-2 text-slate-700 leading-relaxed">${trimmed}</p>`;
+            let f = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-amber-200">$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em class="text-purple-200/80">$1</em>');
+            return f.split('\n').map(l => {
+                const t = l.trim();
+                if (t.startsWith('-')) return `<div class="flex items-start gap-2 mb-2 ml-1"><span class="text-purple-400 font-bold mt-1">•</span><span class="text-slate-200/90 leading-relaxed">${t.substring(1)}</span></div>`;
+                if (/^\d+\./.test(t)) return `<div class="flex items-start gap-2 mb-2 ml-1"><span class="font-bold text-amber-500/80 text-xs mt-1.5">${t.match(/^\d+\./)[0]}</span><span class="text-slate-200/90 leading-relaxed">${t.replace(/^\d+\.\s*/, '')}</span></div>`;
+                return t ? `<p class="mb-3 text-slate-200/90 leading-relaxed">${t}</p>` : '<div class="h-2"></div>';
             }).join('');
         }
 
-        function appendMessage(role, text, audioBase64 = null, shouldAutoplay = false, skipTyping = false) {
+        function appendMessage(role, text, audioBase64 = null, autoplay = false) {
             const div = document.createElement('div');
-            div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in-up`;
-
+            div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`;
             const bubble = document.createElement('div');
-            bubble.className = `max-w-[85%] md:max-w-[70%] px-5 py-3.5 rounded-2xl text-sm shadow-sm leading-relaxed ${role === 'user'
-                ? 'bg-indigo-600 text-white rounded-br-none'
-                : 'bg-white border border-slate-200 text-slate-700 rounded-bl-none'
-                }`;
+            bubble.className = `max-w-[85%] md:max-w-[70%] px-5 py-3.5 rounded-2xl text-sm shadow-lg leading-relaxed ${role === 'user' ? 'msg-user rounded-br-none' : 'msg-ai rounded-bl-none'}`;
 
-            // Apply formatting only if AI
-            let contentHtml = "";
-            let isAi = role === 'ai';
-
-            if (isAi) {
-                contentHtml = formatAiText(text);
-            } else {
-                contentHtml = `<p>${text.replace(/\n/g, '<br>')}</p>`;
-            }
-
-            // Audio & Visualizer Container
-            let audioId = `audio-${Date.now()}`;
-            let canvasId = `canvas-${Date.now()}`;
+            let content = role === 'ai' ? formatAiText(text) : `<p>${text.replace(/\n/g, '<br>')}</p>`;
 
             if (audioBase64) {
-                const audioSrc = `data:audio/wav;base64,${audioBase64}`;
-                // Audio Player UI
-                contentHtml += `
-                    <div class="mt-4 pt-3 border-t ${role === 'user' ? 'border-indigo-400/30' : 'border-slate-100'}">
-                        <p class="text-[10px] uppercase tracking-widest opacity-60 mb-2">Voice Response</p>
-                        
-                        <!-- Visualizer -->
-                        <canvas id="${canvasId}" class="visualizer-canvas mb-3"></canvas>
-                        
-                        <!-- Controls -->
-                        <div class="flex items-center gap-3">
-                            <button id="btn-${audioId}" onclick="toggleAudio('${audioId}')" class="w-8 h-8 flex items-center justify-center bg-indigo-100 text-indigo-600 rounded-full hover:bg-indigo-200 transition">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                            </button>
-                            
-                            <input type="range" id="seek-${audioId}" value="0" max="100" class="flex-grow h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" oninput="seekAudio('${audioId}', this.value)">
-                            
-                            <span id="time-${audioId}" class="text-[10px] text-slate-400 font-mono w-8 text-right">0:00</span>
+                const id = `audio-${Date.now()}`;
+                const canvasId = `vis-${Date.now()}`;
+                content += `
+                    <div class="mt-3 pt-3 border-t border-white/10">
+                        <canvas id="${canvasId}" class="visualizer-canvas mb-2"></canvas>
+                        <div class="flex items-center gap-2">
+                             <button id="btn-${id}" onclick="toggleAudio('${id}')" class="w-8 h-8 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 transition text-white"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+                             <div class="flex-grow h-1 bg-white/10 rounded-full overflow-hidden"><div id="bar-${id}" class="h-full bg-purple-500 w-0 transition-all duration-300"></div></div>
                         </div>
-
-                        <audio id="${audioId}" ${isAi && shouldAutoplay ? 'autoplay' : ''} src="${audioSrc}" class="hidden" 
-                               onplay="startVisualizer('${canvasId}', this); updatePlayBtn('${audioId}', true)" 
-                               onpause="updatePlayBtn('${audioId}', false)"
-                               ontimeupdate="updateProgress('${audioId}')"
-                               onended="updatePlayBtn('${audioId}', false)"></audio>
-                    </div>
-                `;
-            }
-
-            // Initial Content
-            if (isAi && !audioBase64) {
+                        <audio id="${id}" src="data:audio/wav;base64,${audioBase64}" ${autoplay ? 'autoplay' : ''} class="hidden" 
+                            onplay="startVis('${canvasId}',this);updBtn('${id}',1)" onpause="updBtn('${id}',0)" onended="updBtn('${id}',0)" ontimeupdate="updProg('${id}')"></audio>
+                    </div>`;
+            } else if (role === 'ai' && !text) {
                 bubble.innerHTML = '<span class="typing-cursor"></span>';
-            } else {
-                bubble.innerHTML = contentHtml;
             }
 
-            div.appendChild(bubble);
-            chatBox.appendChild(div);
-
-            // Scroll to bottom
+            if (!bubble.innerHTML) bubble.innerHTML = content;
+            div.appendChild(bubble); chatBox.appendChild(div);
             setTimeout(() => chatBox.scrollTop = chatBox.scrollHeight, 100);
 
-            // Trigger Typewriter if needed
-            if (isAi && !audioBase64 && !skipTyping) {
-                typewriterEffect(bubble, contentHtml);
-            } else {
-                if (isAi && !audioBase64) {
-                    // If skipping typing, just show the content (with markdown formatting)
-                    // But wait, contentHtml is already formatted? Yes.
-                    // But we set <span class="typing-cursor"> above if isAi & !audioBase64.
-                    // We need to fix that initial content setting.
-                    bubble.innerHTML = contentHtml;
+            if (role === 'ai' && !audioBase64 && text) typewriter(bubble, content);
+        }
+
+        async function typewriter(el, html) {
+            const tokens = html.split(/(<[^>]+>)/g).filter(t => t);
+            el.innerHTML = '<span class="typing-cursor"></span>';
+            const cursor = el.querySelector('.typing-cursor');
+            for (const t of tokens) {
+                if (t.startsWith('<')) cursor.insertAdjacentHTML('beforebegin', t);
+                else {
+                    for (const c of t) { cursor.insertAdjacentText('beforebegin', c); await new Promise(r => setTimeout(r, 5)); }
                 }
-            }
-        }
-
-        async function typewriterEffect(element, htmlContent) {
-            // 1. Parse HTML into tokens (tags and text)
-            const tokens = htmlContent.split(/(<[^>]+>)/g).filter(t => t);
-
-            element.innerHTML = ''; // Clear cursor temporarily
-
-            // Re-add cursor at the end of content
-            const cursor = document.createElement('span');
-            cursor.className = 'typing-cursor';
-            element.appendChild(cursor);
-
-            for (const token of tokens) {
-                if (token.startsWith('<')) {
-                    // It's a tag, append directly (but insert before cursor)
-                    cursor.insertAdjacentHTML('beforebegin', token);
-                } else {
-                    // It's text, type it out
-                    for (let i = 0; i < token.length; i++) {
-                        cursor.insertAdjacentText('beforebegin', token[i]);
-                        // Scroll occasionally
-                        if (i % 5 === 0) chatBox.scrollTop = chatBox.scrollHeight;
-                        await new Promise(r => setTimeout(r, 10)); // Typing speed
-                    }
-                }
-            }
-
-            // Cleanup cursor after typing
-            cursor.remove();
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
-
-        // --- Audio Control Logic ---
-        function toggleAudio(id) {
-            const audio = document.getElementById(id);
-            if (audio.paused) audio.play();
-            else audio.pause();
-        }
-
-        function updatePlayBtn(id, isPlaying) {
-            const btn = document.getElementById(`btn-${id}`);
-            if (isPlaying) {
-                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>`; // Pause Icon
-            } else {
-                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`; // Play Icon
-            }
-        }
-
-        // Karaoke State
-        let currentTimings = [];
-        let karaokespans = [];
-
-        function updateProgress(id) {
-            const audio = document.getElementById(id);
-            const progressBar = document.getElementById(`bar-${id}`);
-            const timeDisplay = document.getElementById(`time-${id}`);
-            const seekSlider = document.getElementById(`seek-${id}`);
-
-            if (audio) {
-                const percent = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
-
-                if (progressBar) progressBar.style.width = `${percent}%`;
-                if (seekSlider) seekSlider.value = percent;
-
-                // Update Time
-                // Use duration if available for total? No, just current.
-                const minutes = Math.floor(audio.currentTime / 60);
-                const seconds = Math.floor(audio.currentTime % 60);
-                if (timeDisplay) timeDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-
-                // Update Karaoke Highlight
-                updateKaraokeHighlight(audio.currentTime);
-            }
-        }
-
-        function updateKaraokeHighlight(currentTime) {
-            // Remove highlight from all
-            // Optimize: only remove from previous active?
-            // For simplicity, query selector all '.karaoke-active'
-            const active = document.querySelectorAll('.karaoke-active');
-            active.forEach(el => el.classList.remove('karaoke-active', 'bg-indigo-100', 'text-indigo-700', 'font-medium'));
-
-            // Find current word
-            // timings: {word, start, end}
-            const match = currentTimings.find(t => currentTime >= t.start && currentTime <= t.end);
-            if (match && match.spanId) {
-                const span = document.getElementById(match.spanId);
-                if (span) {
-                    span.classList.add('karaoke-active', 'bg-indigo-100', 'text-indigo-700', 'font-medium', 'rounded-sm', 'px-0.5');
-                    // Optional: auto-scroll to word?
-                    // span.scrollIntoView({behavior: "smooth", block: "center"}); 
-                }
-            }
-        }
-
-        // Advanced Text-Node walker to apply spans without breaking HTML
-        function applyKaraokeTags(bubble, timings) {
-            if (!timings || timings.length === 0) return;
-            currentTimings = timings; // Store globally for update loop
-
-            // We need to map linear words to text nodes.
-            // 1. Get all text nodes
-            const textNodes = [];
-            const walker = document.createTreeWalker(bubble, NodeFilter.SHOW_TEXT, null, false);
-            let node;
-            while (node = walker.nextNode()) {
-                if (node.parentElement.tagName !== 'SCRIPT' && node.parentElement.tagName !== 'STYLE') {
-                    textNodes.push(node);
-                }
-            }
-
-            let timingIndex = 0;
-
-            // 2. Iterate text nodes and wrap words
-            for (const textNode of textNodes) {
-                const textContent = textNode.nodeValue;
-                // We will rebuild this text node as a fragment of spans and text
-                let lastIndex = 0;
-                const fragment = document.createDocumentFragment();
-                let modified = false;
-
-                // Regex to find words in this node
-                // We match against the timing word.
-                // Note: TTS word might be normalized (no punct), text might have punct.
-                // Simple strict match might fail.
-                // We'll perform a fuzzy search or just strict containment.
-
-                // Simplification for reliability: 
-                // Just assume sequential matching of words.
-
-                let haystack = textContent;
-                let searchIndex = 0;
-
-                while (timingIndex < timings.length) {
-                    const t = timings[timingIndex];
-                    const word = t.word.trim();
-                    if (!word) { timingIndex++; continue; }
-
-                    // Find this word in the text node
-                    // We look ahead from searchIndex
-                    const idx = haystack.indexOf(word, searchIndex);
-
-                    if (idx !== -1) {
-                        // Found a match!
-                        // 1. Text before match
-                        if (idx > searchIndex) {
-                            fragment.appendChild(document.createTextNode(haystack.substring(searchIndex, idx)));
-                        }
-
-                        // 2. The match (Wrapped)
-                        const span = document.createElement('span');
-                        span.textContent = word;
-                        const spanId = `k-word-${timingIndex}`;
-                        span.id = spanId;
-                        span.className = "transition-all duration-100";
-                        fragment.appendChild(span);
-
-                        // Store spanId in timing object
-                        t.spanId = spanId;
-
-                        searchIndex = idx + word.length;
-                        timingIndex++;
-                        modified = true;
-                    } else {
-                        // Word not found in this node. 
-                        // It might be in the next node.
-                        // Break and move to next node.
-                        break;
-                    }
-                }
-
-                // Append remaining text
-                if (searchIndex < haystack.length) {
-                    fragment.appendChild(document.createTextNode(haystack.substring(searchIndex)));
-                }
-
-                if (modified) {
-                    textNode.parentNode.replaceChild(fragment, textNode);
-                }
-            }
-        }
-        function seekAudio(id, val) {
-            const audio = document.getElementById(id);
-            if (!audio.duration) return;
-            const time = (val / 100) * audio.duration;
-            audio.currentTime = time;
-
-            // Instant Feedback
-            const timeDisplay = document.getElementById(`time-${id}`);
-            const minutes = Math.floor(time / 60);
-            const seconds = Math.floor(time % 60);
-            if (timeDisplay) timeDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-
-            // Update Karaoke instantly
-            updateKaraokeHighlight(time);
-        }
-
-        // --- Visualizer Logic ---
-        function startVisualizer(canvasId, audioEl) {
-            const canvas = document.getElementById(canvasId);
-            const ctx = canvas.getContext('2d');
-
-            if (!audioEl.captureStream) {
-                // Fallback for browsers defined differently
-                audioEl.captureStream = audioEl.captureStream || audioEl.mozCaptureStream;
-            }
-            if (!audioEl.captureStream) return; // Safari/Edge might warn
-
-            // We need a context
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const source = audioCtx.createMediaElementSource(audioEl); // This often fails due to CORS or element state
-            // Better: use simple random visualizer simulated if AudioContext fails, OR just simple animation.
-            // Real AudioContext with media element source is strictly CORS bound. DataURI is fine though.
-
-            const analyser = audioCtx.createAnalyser();
-            source.connect(analyser);
-            analyser.connect(audioCtx.destination);
-
-            analyser.fftSize = 64;
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-
-            function draw() {
-                if (audioEl.paused) return;
-                requestAnimationFrame(draw);
-                analyser.getByteFrequencyData(dataArray);
-
-                ctx.fillStyle = 'white'; // Clear transparent
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                const barWidth = (canvas.width / bufferLength) * 2.5;
-                let barHeight;
-                let x = 0;
-
-                for (let i = 0; i < bufferLength; i++) {
-                    barHeight = dataArray[i] / 2;
-                    ctx.fillStyle = `rgba(99, 102, 241, ${barHeight / 100 + 0.2})`;
-                    ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-                    x += barWidth + 1;
-                }
-            }
-            draw();
-        }
-
-        // --- Suggestions Logic ---
-        function appendSuggestions(suggestions) {
-            if (!suggestions || suggestions.length === 0) return;
-
-            const div = document.createElement('div');
-            div.className = 'flex flex-wrap gap-2 justify-end mb-4 animate-fade-in-up px-4';
-
-            suggestions.forEach((text, index) => {
-                const chip = document.createElement('button');
-                chip.className = 'suggestion-chip bg-white border border-indigo-200 text-indigo-700 text-xs px-3 py-2 rounded-full shadow-sm hover:bg-indigo-50 hover:border-indigo-300 transition';
-                chip.style.animationDelay = `${index * 100}ms`;
-                chip.innerText = text;
-                chip.onclick = () => {
-                    document.getElementById('question').value = text;
-                    document.getElementById('askForm').dispatchEvent(new Event('submit'));
-                };
-                div.appendChild(chip);
-            });
-            chatBox.appendChild(div);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
-        function showLoading() {
-            const div = document.createElement('div');
-            div.id = 'loadingIndicator';
-            div.className = 'text-xs text-slate-400 ml-2 animate-pulse flex items-center gap-1 mt-2';
-            div.innerHTML = '<span>✨</span> AI is analyzing...';
-            chatBox.appendChild(div);
-            chatBox.scrollTop = chatBox.scrollHeight;
-            return div;
-        }
-
-        function hideLoading() {
-            const el = document.getElementById('loadingIndicator');
-            if (el) el.remove();
-        }
-
-        // --- Persistence Logic ---
-        async function loadMessages() {
-            const id = document.getElementById('kundaliId').value;
-            const userId = "00000000-0000-0000-0000-000000000001"; // Mock User ID for now (should come from auth context)
-            if (!id) return;
-
-            // Clear previous chat
-            const chatBox = document.getElementById('chatBox');
-            chatBox.innerHTML = '';
-
-            try {
-                const res = await fetch(`${API_BASE}/api/v1/history/${id}?user_id=${userId}`);
-                if (!res.ok) return; // No history or error
-
-                const messages = await res.json();
-                messages.forEach(msg => {
-                    appendMessage(msg.role, msg.text, null, false, true);
-                });
-
-                // Scroll to bottom
                 chatBox.scrollTop = chatBox.scrollHeight;
-            } catch (e) {
-                console.error("Failed to load history", e);
             }
+            cursor.remove();
         }
 
-        // Removed manual saveMessage since backend handles persistence now.
-        function saveMessage(role, text, audioBase64 = null) {
-            // No-op
-        }
+        // Functions exposed to window for inline onclicks
+        window.toggleAudio = (id) => { const a = document.getElementById(id); a.paused ? a.play() : a.pause(); };
+        window.updBtn = (id, p) => document.getElementById(`btn-${id}`).innerHTML = p ? '<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>' : '<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+        window.updProg = (id) => { const a = document.getElementById(id); if (a) document.getElementById(`bar-${id}`).style.width = (a.currentTime / a.duration) * 100 + '%'; };
+        window.startVis = (cid, aud) => {
+            const c = document.getElementById(cid); const ctx = c.getContext('2d');
+            if (!aud.source) {
+                const ac = new (window.AudioContext || window.webkitAudioContext)();
+                const src = ac.createMediaElementSource(aud); const an = ac.createAnalyser();
+                src.connect(an); an.connect(ac.destination); aud.source = an; aud.ac = ac;
+            }
+            const an = aud.source; an.fftSize = 64; const len = an.frequencyBinCount; const data = new Uint8Array(len);
+            const draw = () => {
+                if (aud.paused) return; requestAnimationFrame(draw); an.getByteFrequencyData(data);
+                ctx.clearRect(0, 0, c.width, c.height); const w = c.width / len * 2.5;
+                for (let i = 0; i < len; i++) {
+                    const h = data[i] / 2; ctx.fillStyle = `rgba(168, 85, 247, ${h / 100 + 0.3})`;
+                    ctx.fillRect(i * (w + 1), c.height - h, w, h);
+                }
+            }; draw();
+        };
 
-        document.getElementById('kundaliId').addEventListener('change', loadMessages);
-        // Initial load if ID exists
-        if (document.getElementById('kundaliId').value) loadMessages();
-
+        const loadHistory = async () => {
+            const id = document.getElementById('kundaliId').value;
+            if (!id) return;
+            chatBox.innerHTML = '';
+            try {
+                const res = await fetch(`${API_BASE}/api/v1/history/${id}?user_id=1`);
+                if (res.ok) (await res.json()).forEach(m => appendMessage(m.role, m.text, null, false));
+            } catch (e) { }
+        };
+        document.getElementById('kundaliId').addEventListener('change', loadHistory);
+        if (document.getElementById('kundaliId').value) loadHistory();
 
         document.getElementById('askForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('kundaliId').value;
-            const qInput = document.getElementById('question');
-            const q = qInput.value.trim();
-
-            if (!id) return alert('Please enter a Kundali ID or create one first.');
+            const q = document.getElementById('question').value.trim();
+            if (!id) return alert('Enter Kundali ID');
             if (!q) return;
 
-            saveMessage('user', q); // Save
+            document.getElementById('question').value = '';
+            document.getElementById('question').style.height = 'auto'; // Reset textarea
             appendMessage('user', q);
-            qInput.value = '';
-            showLoading();
+
+            // Loading bubble
+            const loadingId = 'loading-' + Date.now();
+            const div = document.createElement('div'); div.id = loadingId; div.className = 'flex animate-fade-in';
+            div.innerHTML = `<div class="bg-white/5 border border-white/5 px-4 py-3 rounded-2xl rounded-bl-none text-slate-300 text-xs flex items-center gap-2"><div class="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>Consulting stars...</div>`;
+            chatBox.appendChild(div); chatBox.scrollTop = chatBox.scrollHeight;
 
             try {
                 const res = await fetch(`${API_BASE}/api/v1/ask`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ kundali_core_id: id, question: q })
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ kundali_core_id: id, question: q, match_id: urlMatchId || null })
                 });
 
-                hideLoading();
-
+                document.getElementById(loadingId).remove();
                 if (!res.ok) throw new Error(await res.text());
 
-                // Prepare UI for stream
-                saveMessage('ai', '');
-                appendMessage('ai', ''); // Create empty bubble
-                const bubble = chatBox.lastElementChild.querySelector('.bg-white'); // Get last bubble
-
-                let fullText = "";
-                const reader = res.body.getReader();
-                const decoder = new TextDecoder();
+                appendMessage('ai', '');
+                const bubble = chatBox.lastElementChild.querySelector('.msg-ai');
+                const reader = res.body.getReader(); const dec = new TextDecoder();
+                let full = '';
 
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
-
-                    const chunk = decoder.decode(value);
-                    const lines = chunk.split('\n');
-
-                    for (const line of lines) {
-                        if (line.trim()) {
+                    const lines = dec.decode(value).split('\n');
+                    for (const l of lines) {
+                        if (l.trim()) {
                             try {
-                                const data = JSON.parse(line);
-                                if (data.chunk) {
-                                    fullText += data.chunk;
-                                    bubble.innerHTML = formatAiText(fullText); // Update in place
-                                    chatBox.scrollTop = chatBox.scrollHeight;
-                                }
-                            } catch (e) {
-                                console.error("Error parsing JSON chunk", e);
-                            }
+                                const d = JSON.parse(l);
+                                if (d.chunk) { full += d.chunk; bubble.innerHTML = formatAiText(full); chatBox.scrollTop = chatBox.scrollHeight; }
+                            } catch (e) { }
                         }
                     }
                 }
-
-                // Final save
-                saveMessage('ai', fullText);
-
-                // Suggestion extraction logic (if we add it back to stream)
-                // For now, simpler stream logic
-
-            } catch (err) {
-                hideLoading();
-                appendMessage('ai', '⚠️ Error: ' + err.message);
+            } catch (e) {
+                if (document.getElementById(loadingId)) document.getElementById(loadingId).remove();
+                appendMessage('ai', '⚠️ Cosmic Alignment Error: ' + e.message);
             }
         });
 
-        // Voice Logic
-        let mediaRecorder;
-        let audioChunks = [];
-        let isRecording = false;
-
-        voiceBtn.addEventListener('click', async () => {
+        // Voice
+        const vBtn = document.getElementById('voiceBtn');
+        let rec;
+        vBtn.addEventListener('click', async () => {
             const id = document.getElementById('kundaliId').value;
-            if (!id) return alert('Please enter a Kundali ID first.');
+            if (!id) return alert('Enter ID');
 
-            if (!isRecording) {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    mediaRecorder = new MediaRecorder(stream);
-                    audioChunks = [];
-                    mediaRecorder.ondataavailable = event => audioChunks.push(event.data);
-
-                    mediaRecorder.onstop = async () => {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                        processAudio(audioBlob, id);
-                        stream.getTracks().forEach(track => track.stop());
-                    };
-
-                    mediaRecorder.start();
-                    isRecording = true;
-
-                    voiceBtn.classList.add('bg-red-50', 'text-red-500', 'border-red-200');
-                    voiceBtn.innerHTML = `<div class="w-3 h-3 bg-red-500 rounded-sm"></div>`;
-                    statusBadge.classList.remove('hidden');
-                    statusBadge.classList.add('flex');
-
-                } catch (err) {
-                    alert("Microphone access denied: " + err.message);
-                }
+            if (vBtn.classList.contains('recording')) {
+                rec.stop();
+                vBtn.classList.remove('recording', 'bg-red-500/20', 'text-red-500', 'border-red-500/50');
+                vBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 group-hover:scale-110 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>`;
+                document.getElementById('recordingStatus').classList.add('hidden');
             } else {
-                mediaRecorder.stop();
-                isRecording = false;
-                voiceBtn.classList.remove('bg-red-50', 'text-red-500', 'border-red-200');
-                voiceBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>`;
-                statusBadge.classList.add('hidden');
-                statusBadge.classList.remove('flex');
+                try {
+                    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    rec = new MediaRecorder(s);
+                    const chunks = [];
+                    rec.ondataavailable = e => chunks.push(e.data);
+                    rec.onstop = async () => {
+                        const blob = new Blob(chunks, { type: 'audio/wav' });
+                        const fd = new FormData(); fd.append('audio', blob, 'rec.wav');
+
+                        const loadingId = 'loading-' + Date.now();
+                        const div = document.createElement('div'); div.id = loadingId; div.className = 'flex animate-fade-in';
+                        div.innerHTML = `<div class="bg-white/5 border border-white/5 px-4 py-3 rounded-2xl rounded-bl-none text-slate-300 text-xs flex items-center gap-2"><div class="w-2 h-2 bg-pink-500 rounded-full animate-bounce"></div>Listening...</div>`;
+                        chatBox.appendChild(div);
+
+                        let url = `${API_BASE}/api/v1/voice?kundali_core_id=${id}`;
+                        if (urlMatchId) url += `&match_id=${urlMatchId}`;
+
+                        const res = await fetch(url, { method: 'POST', body: fd });
+                        document.getElementById(loadingId).remove();
+                        if (res.ok) {
+                            const data = await res.json();
+                            appendMessage('user', data.user_text);
+                            appendMessage('ai', data.ai_text, data.audio_base64, true);
+                        }
+                    };
+                    rec.start();
+                    vBtn.classList.add('recording', 'bg-red-500/20', 'text-red-500', 'border-red-500/50');
+                    vBtn.innerHTML = '<div class="w-3 h-3 bg-red-500 rounded-sm animate-pulse"></div>';
+                    document.getElementById('recordingStatus').classList.remove('hidden');
+                    document.getElementById('recordingStatus').classList.add('flex');
+                } catch (e) { alert('Mic blocked'); }
             }
         });
-
-        // Audio Queue Logic
-        let audioQueue = [];
-        let isPlayingAudio = false;
-
-        function playNextChunk() {
-            if (isPlayingAudio || audioQueue.length === 0) return;
-
-            isPlayingAudio = true;
-            const b64 = audioQueue.shift();
-
-            // Convert base64 to Blob
-            const byteCharacters = atob(b64);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: 'audio/mp3' });
-            const url = URL.createObjectURL(blob);
-
-            const audio = new Audio(url);
-            audio.onended = () => {
-                isPlayingAudio = false;
-                URL.revokeObjectURL(url);
-                playNextChunk();
-            };
-            audio.play().catch(e => {
-                console.error("Audio play error", e);
-                isPlayingAudio = false;
-                playNextChunk();
-            });
-        }
-
-        // Stream Utilities
-        function handleStreamPlayPause(id) {
-            toggleAudio(id);
-        }
-
-        function updateStreamBtn(audioId, isPlaying) {
-            const playIcon = document.getElementById(`icon-play-${audioId}`);
-            const pauseIcon = document.getElementById(`icon-pause-${audioId}`);
-            if (!playIcon || !pauseIcon) return;
-
-            if (isPlaying) {
-                playIcon.classList.add('hidden');
-                pauseIcon.classList.remove('hidden');
-            } else {
-                playIcon.classList.remove('hidden');
-                pauseIcon.classList.add('hidden');
-            }
-        }
-
-        async function processAudio(blob, id) {
-            const loadingMsg = showLoading();
-            loadingMsg.innerHTML = '<span>🎙️</span> Listening...';
-            const formData = new FormData();
-            formData.append('audio', blob, 'recording.wav');
-
-            // Reset Queue
-            audioQueue = [];
-            isPlayingAudio = false;
-
-            try {
-                const res = await fetch(`${API_BASE}/api/v1/voice?kundali_core_id=${id}`, {
-                    method: 'POST',
-                    body: formData
-                });
-
-                hideLoading();
-
-                if (!res.ok) {
-                    appendMessage('ai', '⚠️ Error: Voice request failed.');
-                    return;
-                }
-
-                // Create user/AI bubbles
-                // Temporarily create user bubble with "..." until transcription arrives?
-                // Or wait for first event. Let's wait for first event or use a placeholder.
-                let userBubble = null;
-                let aiBubble = null;
-                let aiText = "";
-
-                // State
-                // State
-                let fullAudioChunks = [];
-                let hasInjectedPlayer = false;
-                let audioId = `audio-stream-${Date.now()}`;
-                let pendingTimings = null; // Store timings to apply later
-
-                const reader = res.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
-
-                // Helper: Inject Player UI with Slider
-                function injectPlayerHelper(bubble) {
-                    if (document.getElementById(`container-${audioId}`)) return; // Prevent duplicate
-
-                    const playerHtml = `
-                        <div class="mt-4 pt-3 border-t border-slate-100" id="container-${audioId}">
-                             <p class="text-[10px] uppercase tracking-widest opacity-60 mb-2">Voice Response</p>
-                             <div class="flex items-center gap-3">
-                                <button id="btn-${audioId}" onclick="handleStreamPlayPause('${audioId}')" class="w-8 h-8 flex items-center justify-center bg-indigo-100 text-indigo-600 rounded-full hover:bg-indigo-200 transition">
-                                    <svg id="icon-play-${audioId}" xmlns="http://www.w3.org/2000/svg" class="has-audio hidden h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                                    <svg id="icon-pause-${audioId}" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-                                </button>
-                                
-                                <input type="range" id="seek-${audioId}" value="0" max="100" class="flex-grow h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" oninput="seekAudio('${audioId}', this.value)">
-                                
-                                <span id="time-${audioId}" class="text-[10px] text-slate-400 font-mono w-8 text-right">0:00</span>
-
-                                <audio id="${audioId}" class="hidden" 
-                                       onplay="updateStreamBtn('${audioId}', true)" 
-                                       onpause="updateStreamBtn('${audioId}', false)"
-                                       ontimeupdate="updateProgress('${audioId}')"
-                                       onended="updateStreamBtn('${audioId}', false)"></audio>
-                             </div>
-                        </div>`;
-                    bubble.insertAdjacentHTML('beforeend', playerHtml);
-                }
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    const chunk = decoder.decode(value, { stream: true });
-                    buffer += chunk;
-
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop(); // Keep incomplete line
-
-                    for (const line of lines) {
-                        if (!line.trim()) continue;
-
-                        try {
-                            const data = JSON.parse(line);
-
-                            // 1. Transcription
-                            if (data.type === "transcription") {
-                                if (!userBubble) {
-                                    saveMessage('user', data.text);
-                                    appendMessage('user', data.text, null, false, true);
-                                    userBubble = true;
-                                    saveMessage('ai', '');
-                                    appendMessage('ai', '');
-                                    aiBubble = chatBox.lastElementChild.querySelector('.bg-white');
-                                }
-                            }
-                            // 2. Text Chunk (AI Text)
-                            else if (data.type === "text") {
-                                if (!aiBubble) {
-                                    saveMessage('ai', '');
-                                    appendMessage('ai', '');
-                                    aiBubble = chatBox.lastElementChild.querySelector('.bg-white');
-                                }
-                                aiText += data.chunk;
-                                aiBubble.innerHTML = formatAiText(aiText);
-                                chatBox.scrollTop = chatBox.scrollHeight;
-                            }
-                            // 3. Timings Event
-                            else if (data.type === "timings") {
-                                pendingTimings = data.data;
-                            }
-                            // 4. Audio Chunk
-                            else if (data.type === "audio") {
-                                try {
-                                    const binary = atob(data.chunk);
-                                    const bytes = new Uint8Array(binary.length);
-                                    for (let i = 0; i < binary.length; i++) {
-                                        bytes[i] = binary.charCodeAt(i);
-                                    }
-                                    fullAudioChunks.push(bytes.buffer);
-                                } catch (e) { console.error("Error decoding audio chunk", e); }
-                            }
-
-                        } catch (e) {
-                            // Ignore
-                        }
-                    }
-                }
-
-                // POST-PROCESSING: Apply UI updates nicely
-                if (aiBubble) {
-                    // 1. Apply Karaoke Tags (Text is final now)
-                    if (pendingTimings) {
-                        applyKaraokeTags(aiBubble, pendingTimings);
-                    }
-
-                    // 2. Inject Player & Play (Audio is ready)
-                    if (fullAudioChunks.length > 0) {
-                        try {
-                            injectPlayerHelper(aiBubble);
-
-                            const finalBlob = new Blob(fullAudioChunks, { type: 'audio/mp3' });
-                            const audioUrl = URL.createObjectURL(finalBlob);
-
-                            const audioEl = document.getElementById(audioId);
-                            if (audioEl) {
-                                audioEl.src = audioUrl;
-                                audioEl.play().catch(e => console.log('Autoplay blocked', e));
-                            }
-                        } catch (e) {
-                            console.error("Player injection failed", e);
-                            appendMessage('ai', `⚠️ debug: Player injection failed - ${e.message}`); // Visible debug
-                        }
-                    } else {
-                        console.warn("No audio chunks received.");
-                        // Force visible debug message
-                        const debugInfo = `Chunk count: ${fullAudioChunks.length}, Timings present: ${!!pendingTimings}`;
-                        appendMessage('ai', `⚠️ Audio Missing (${debugInfo}). Please check server logs.`);
-                    }
-                }
-
-            } catch (err) {
-                hideLoading();
-                appendMessage('ai', '⚠️ Voice Error: ' + err.message);
-            }
-        }
     </script>
 </body>
 
