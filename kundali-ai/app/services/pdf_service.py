@@ -15,14 +15,14 @@ logger = logging.getLogger(__name__)
 class KundaliPDF(FPDF):
     """Premium styled PDF with footer and accent colors."""
     
-    # Brand colors (Indigo theme)
-    INDIGO_600 = (79, 70, 229)      # Primary
-    INDIGO_100 = (224, 231, 255)    # Light bg
-    SLATE_800 = (30, 41, 59)        # Dark text
-    SLATE_500 = (100, 116, 139)     # Muted text
-    SLATE_100 = (241, 245, 249)     # Table header bg
-    GREEN_100 = (220, 252, 231)     # Positive
-    RED_100 = (254, 226, 226)       # Warning
+    # Brand colors (Warm Vedic theme - Saffron/Amber/Orange)
+    SAFFRON_600 = (217, 119, 6)       # Primary (Saffron)
+    AMBER_100 = (255, 251, 235)       # Light bg
+    BROWN_800 = (68, 51, 26)          # Dark text
+    SLATE_500 = (100, 116, 139)       # Muted text
+    AMBER_50 = (255, 251, 235)        # Table header bg
+    GREEN_100 = (220, 252, 231)       # Positive
+    RED_100 = (254, 226, 226)         # Warning
     
     def footer(self):
         self.set_y(-15)
@@ -132,6 +132,314 @@ class PDFService:
         }
 
     # ─────────────────────────────────────────────
+    # Matching Report PDF Renderer
+    # ─────────────────────────────────────────────
+
+    def render_matching_pdf(
+        self,
+        report_data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Render a premium Kundali Matching PDF report.
+        
+        Color Theme: Warm Vedic tones
+        - Saffron/Deep Orange (#D97706, #EA580C)
+        - Amber/Gold (#F59E0B, #FBBF24)
+        - Crimson accent (#DC2626)
+        """
+        pdf = KundaliPDF('P', 'mm', 'A4')
+        
+        # Load custom font if available
+        font_path = os.path.join("app", "fonts", "custom_font.ttf")
+        if os.path.exists(font_path):
+            try:
+                pdf.add_font('CustomFont', '', font_path, uni=True)
+            except Exception as e:
+                logger.error(f"Failed to load custom font: {e}")
+        
+        pdf.add_page()
+        
+        # Theme colors (Warm Vedic spectrum)
+        SAFFRON = (217, 119, 6)       # Deep amber/saffron
+        ORANGE_600 = (234, 88, 12)    # Vibrant orange
+        AMBER_500 = (245, 158, 11)    # Gold/Amber
+        AMBER_400 = (251, 191, 36)    # Light gold
+        CRIMSON = (220, 38, 38)       # Accent red
+        BROWN_800 = (68, 51, 26)      # Dark text
+        SLATE_500 = (100, 116, 139)   # Muted text
+        BLUE_500 = (59, 130, 246)     # Boy color
+        ROSE_500 = (244, 63, 94)      # Girl color
+        GREEN_500 = (34, 197, 94)     # Good score
+        RED_500 = (239, 68, 68)       # Low score
+        YELLOW_500 = (234, 179, 8)    # Medium score
+        
+        boy_name = report_data.get("boy_name", "Boy")
+        girl_name = report_data.get("girl_name", "Girl")
+        match_id = report_data.get("match_id", "")
+        filename = f"matching-{boy_name}-{girl_name}-{match_id[:8] if match_id else 'report'}.pdf"
+        
+        # --- Header with Saffron Gradient Bar ---
+        pdf.set_fill_color(*SAFFRON)
+        pdf.rect(0, 0, 210, 12, 'F')
+        
+        # Add an amber accent line
+        pdf.set_fill_color(*AMBER_400)
+        pdf.rect(0, 12, 210, 2, 'F')
+        
+        pdf.ln(20)
+        
+        # Title
+        pdf.set_font('Arial', 'B', 28)
+        pdf.set_text_color(*SAFFRON)
+        pdf.cell(0, 15, 'Kundali Matching Report', 0, 1, 'C')
+        
+        # Subtitle
+        pdf.set_font('Arial', '', 12)
+        pdf.set_text_color(*SLATE_500)
+        pdf.cell(0, 6, 'Ashta Koot Milan Analysis', 0, 1, 'C')
+        
+        # Decorative line
+        pdf.set_draw_color(*AMBER_500)
+        pdf.set_line_width(0.5)
+        pdf.line(60, pdf.get_y() + 5, 150, pdf.get_y() + 5)
+        pdf.ln(15)
+        
+        # --- Partner Names Section ---
+        pdf.set_font('Arial', 'B', 14)
+        pdf.set_text_color(*BLUE_500)
+        pdf.cell(95, 10, f"  {boy_name}", 0, 0, 'C')
+        pdf.set_text_color(*ROSE_500)
+        pdf.cell(95, 10, f"  {girl_name}", 0, 1, 'C')
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(5)
+        
+        # Birth details if available
+        boy_details = report_data.get("boy_details", {})
+        girl_details = report_data.get("girl_details", {})
+        
+        if boy_details or girl_details:
+            pdf.set_font('Arial', '', 9)
+            pdf.set_text_color(100, 116, 139)
+            
+            boy_info = []
+            if boy_details.get("birth_date"):
+                boy_info.append(boy_details["birth_date"])
+            if boy_details.get("birth_place"):
+                boy_info.append(boy_details["birth_place"][:25])
+            
+            girl_info = []
+            if girl_details.get("birth_date"):
+                girl_info.append(girl_details["birth_date"])
+            if girl_details.get("birth_place"):
+                girl_info.append(girl_details["birth_place"][:25])
+            
+            pdf.cell(95, 5, " | ".join(boy_info), 0, 0, 'C')
+            pdf.cell(95, 5, " | ".join(girl_info), 0, 1, 'C')
+            pdf.ln(8)
+        
+        # --- Score Summary Box ---
+        total_score = report_data.get("total_score", 0)
+        max_score = report_data.get("max_score", 36)
+        percentage = report_data.get("percentage", 0)
+        verdict = report_data.get("verdict", "")
+        
+        # Draw a nice box for score
+        box_x = 55
+        box_y = pdf.get_y()
+        box_w = 100
+        box_h = 50
+        
+        # Box background
+        pdf.set_fill_color(255, 251, 235)  # Light amber tint
+        pdf.rect(box_x, box_y, box_w, box_h, 'F')
+        
+        # Box border
+        pdf.set_draw_color(*SAFFRON)
+        pdf.set_line_width(1)
+        pdf.rect(box_x, box_y, box_w, box_h, 'D')
+        
+        # Score text
+        pdf.set_xy(box_x, box_y + 8)
+        pdf.set_font('Arial', 'B', 36)
+        
+        # Color based on score
+        if percentage >= 70:
+            pdf.set_text_color(*GREEN_500)
+        elif percentage >= 50:
+            pdf.set_text_color(*YELLOW_500)
+        else:
+            pdf.set_text_color(*RED_500)
+        
+        pdf.cell(box_w, 15, f"{total_score}", 0, 1, 'C')
+        
+        pdf.set_xy(box_x, pdf.get_y())
+        pdf.set_font('Arial', '', 12)
+        pdf.set_text_color(100, 116, 139)
+        pdf.cell(box_w, 6, f"out of {max_score} ({percentage}%)", 0, 1, 'C')
+        
+        # Verdict
+        pdf.set_xy(box_x, pdf.get_y() + 3)
+        pdf.set_font('Arial', 'B', 14)
+        pdf.set_text_color(*SAFFRON)
+        pdf.cell(box_w, 8, verdict, 0, 1, 'C')
+        
+        pdf.set_y(box_y + box_h + 10)
+        pdf.set_text_color(0, 0, 0)
+        
+        # --- Verdict Description ---
+        verdict_desc = report_data.get("verdict_description", "")
+        if verdict_desc:
+            pdf.set_font('Arial', 'I', 10)
+            pdf.set_text_color(100, 116, 139)
+            pdf.multi_cell(0, 5, verdict_desc, 0, 'C')
+            pdf.ln(10)
+        
+        # --- Ashta Koot Factors Table ---
+        pdf.add_page()
+        
+        # Section header
+        pdf.set_fill_color(255, 251, 235)  # Light amber tint
+        pdf.rect(10, pdf.get_y(), 190, 10, 'F')
+        pdf.set_font('Arial', 'B', 14)
+        pdf.set_text_color(*SAFFRON)
+        pdf.cell(0, 10, 'Ashta Koot Breakdown', 0, 1)
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(5)
+        
+        # Table header
+        pdf.set_font('Arial', 'B', 9)
+        pdf.set_fill_color(*SAFFRON)
+        pdf.set_text_color(255, 255, 255)
+        pdf.cell(30, 10, 'Factor', 1, 0, 'C', True)
+        pdf.cell(35, 10, 'Area', 1, 0, 'C', True)
+        pdf.cell(35, 10, 'Boy', 1, 0, 'C', True)
+        pdf.cell(35, 10, 'Girl', 1, 0, 'C', True)
+        pdf.cell(20, 10, 'Max', 1, 0, 'C', True)
+        pdf.cell(20, 10, 'Score', 1, 0, 'C', True)
+        pdf.cell(15, 10, '', 1, 1, 'C', True)  # Status icon
+        pdf.set_text_color(0, 0, 0)
+        
+        # Factor icons
+        factor_icons = {
+            'Varna': 'Work', 'Vashya': 'Control', 'Tara': 'Destiny',
+            'Yoni': 'Intimacy', 'Graha Maitri': 'Mind', 'Gana': 'Nature',
+            'Bhakoot': 'Love', 'Nadi': 'Health'
+        }
+        
+        factors = report_data.get("factors", [])
+        row_idx = 0
+        for factor in factors:
+            # Alternating row colors
+            if row_idx % 2 == 0:
+                pdf.set_fill_color(255, 251, 235)  # Light amber
+            else:
+                pdf.set_fill_color(255, 255, 255)
+            
+            name = factor.get("name", "")
+            area = factor.get("area", factor_icons.get(name, ""))
+            boy_value = str(factor.get("boy_value", "-"))[:12]
+            girl_value = str(factor.get("girl_value", "-"))[:12]
+            max_pts = factor.get("max", 0)
+            score = factor.get("score", 0)
+            
+            percent = (score / max_pts * 100) if max_pts > 0 else 0
+            
+            pdf.set_font('Arial', 'B', 9)
+            pdf.cell(30, 8, name, 1, 0, 'L', True)
+            pdf.set_font('Arial', '', 8)
+            pdf.cell(35, 8, area[:15] if area else "-", 1, 0, 'C', True)
+            
+            pdf.set_text_color(*BLUE_500)
+            pdf.cell(35, 8, boy_value, 1, 0, 'C', True)
+            pdf.set_text_color(*ROSE_500)
+            pdf.cell(35, 8, girl_value, 1, 0, 'C', True)
+            pdf.set_text_color(0, 0, 0)
+            
+            pdf.cell(20, 8, str(max_pts), 1, 0, 'C', True)
+            
+            # Score with color
+            if percent >= 70:
+                pdf.set_text_color(*GREEN_500)
+            elif percent >= 40:
+                pdf.set_text_color(*YELLOW_500)
+            else:
+                pdf.set_text_color(*RED_500)
+            
+            pdf.set_font('Arial', 'B', 9)
+            pdf.cell(20, 8, str(score), 1, 0, 'C', True)
+            
+            # Status
+            status = "Good" if percent >= 50 else "Low"
+            pdf.set_font('Arial', '', 7)
+            pdf.cell(15, 8, status, 1, 1, 'C', True)
+            pdf.set_text_color(0, 0, 0)
+            
+            row_idx += 1
+        
+        pdf.ln(10)
+        
+        # --- Detailed Interpretations ---
+        pdf.add_page()
+        
+        pdf.set_fill_color(255, 251, 235)  # Light amber
+        pdf.rect(10, pdf.get_y(), 190, 10, 'F')
+        pdf.set_font('Arial', 'B', 14)
+        pdf.set_text_color(*SAFFRON)
+        pdf.cell(0, 10, 'Detailed Interpretations', 0, 1)
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(5)
+        
+        interpretation = report_data.get("interpretation", {})
+        
+        factor_names = [
+            ("varna", "Varna - Work & Status"),
+            ("vasya", "Vasya - Dominance & Control"),
+            ("tara", "Tara - Destiny & Health"),
+            ("yoni", "Yoni - Physical & Intimacy"),
+            ("rasi_lord", "Rasi Lord - Mental Compatibility"),
+            ("gana", "Gana - Temperament & Nature"),
+            ("bhakoot", "Bhakoot - Love & Prosperity"),
+            ("nadi", "Nadi - Health & Progeny"),
+        ]
+        
+        for key, title in factor_names:
+            text = interpretation.get(key, "")
+            if not text:
+                continue
+            
+            # Check if we need a new page
+            if pdf.get_y() > 240:
+                pdf.add_page()
+            
+            # Factor title
+            pdf.set_font('Arial', 'B', 11)
+            pdf.set_text_color(*ORANGE_600)
+            pdf.cell(0, 8, title, 0, 1)
+            
+            # Interpretation text
+            pdf.set_font('Arial', '', 10)
+            pdf.set_text_color(50, 50, 50)
+            
+            # Clean and write text
+            clean_text = text.encode('latin-1', 'replace').decode('latin-1')
+            pdf.multi_cell(0, 5, clean_text, 0, 'J')
+            pdf.ln(6)
+        
+        # --- Footer note ---
+        pdf.ln(10)
+        pdf.set_font('Arial', 'I', 9)
+        pdf.set_text_color(100, 116, 139)
+        pdf.multi_cell(0, 5, "This report is generated based on Vedic astrology principles. While it provides insights into compatibility, successful relationships also depend on love, understanding, and mutual effort.", 0, 'C')
+        
+        # Generate PDF bytes
+        pdf_bytes = pdf.output(dest='S').encode('latin1')
+        
+        return {
+            "filename": filename,
+            "bytes": pdf_bytes
+        }
+
+    # ─────────────────────────────────────────────
     # Internal helpers
     # ─────────────────────────────────────────────
 
@@ -204,12 +512,12 @@ class PDFService:
         logger.debug("Meta data: %s", meta)
         
         # --- Premium Header ---
-        # Draw accent bar at top
-        pdf.set_fill_color(79, 70, 229)  # Indigo-600
+        # Draw accent bar at top (Warm Vedic theme)
+        pdf.set_fill_color(217, 119, 6)  # Saffron
         pdf.rect(0, 0, 210, 8, 'F')
         
         pdf.set_font('Arial', 'B', 28)
-        pdf.set_text_color(30, 41, 59)  # Slate-800
+        pdf.set_text_color(139, 69, 19)  # SaddleBrown for Vedic feel
         pdf.ln(15)
         pdf.cell(0, 15, labels['title'], 0, 1, 'C')
         
@@ -220,7 +528,7 @@ class PDFService:
         pdf.cell(0, 6, f"Generated: {meta.get('generated_at', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}", 0, 1, 'C')
         
         # Decorative line
-        pdf.set_draw_color(79, 70, 229)  # Indigo-600
+        pdf.set_draw_color(245, 158, 11)  # Amber-500
         pdf.set_line_width(0.5)
         pdf.line(50, 45, 160, 45)
         pdf.set_draw_color(0, 0, 0)  # Reset
@@ -242,10 +550,10 @@ class PDFService:
         kundali_data = report_context.get('kundali', core)
         if 'ascendant' in kundali_data and 'planets' in kundali_data:
             # Premium section header with accent
-            pdf.set_fill_color(224, 231, 255)  # Indigo-100
+            pdf.set_fill_color(255, 251, 235)  # Amber light
             pdf.rect(10, pdf.get_y(), 190, 10, 'F')
             pdf.set_font('Arial', 'B', 14)
-            pdf.set_text_color(79, 70, 229)  # Indigo-600
+            pdf.set_text_color(217, 119, 6)  # Saffron
             pdf.cell(0, 10, labels['astro_particulars'], 0, 1)
             pdf.set_text_color(0, 0, 0)  # Reset
             pdf.ln(4)
@@ -263,7 +571,7 @@ class PDFService:
             
             # Premium table styling
             pdf.set_font('Arial', 'B', 10)
-            pdf.set_fill_color(79, 70, 229)  # Indigo-600
+            pdf.set_fill_color(217, 119, 6)  # Saffron
             pdf.set_text_color(255, 255, 255)  # White
             pdf.cell(50, 8, "Feature", 1, 0, 'L', True)
             pdf.cell(45, 8, "Sign", 1, 0, 'C', True)
@@ -416,17 +724,17 @@ class PDFService:
         # --- Planetary Positions (Table) ---
         if 'planets' in core:
             # Premium section header
-            pdf.set_fill_color(224, 231, 255)  # Indigo-100
+            pdf.set_fill_color(255, 251, 235)  # Amber light
             pdf.rect(10, pdf.get_y(), 190, 10, 'F')
             pdf.set_font('Arial', 'B', 14)
-            pdf.set_text_color(79, 70, 229)  # Indigo-600
+            pdf.set_text_color(217, 119, 6)  # Saffron
             pdf.cell(0, 10, labels['planetary_positions'], 0, 1)
             pdf.set_text_color(0, 0, 0)  # Reset
             pdf.ln(4)
             
             # Premium table headers
             pdf.set_font('Arial', 'B', 10)
-            pdf.set_fill_color(79, 70, 229)  # Indigo-600
+            pdf.set_fill_color(217, 119, 6)  # Saffron
             pdf.set_text_color(255, 255, 255)  # White
             pdf.cell(30, 10, "Planet", 1, 0, 'C', True)
             pdf.cell(30, 10, "Sign", 1, 0, 'C', True)
@@ -924,12 +1232,12 @@ class PDFService:
         pdf.rect(x, y, size, size, 'F')
         
         # Draw border
-        pdf.set_draw_color(199, 210, 254)  # Indigo-200
+        pdf.set_draw_color(217, 119, 6)  # Saffron border
         pdf.set_line_width(0.8)
         pdf.rect(x, y, size, size)
         
-        # 2. Draw Geometry with Indigo lines
-        pdf.set_draw_color(165, 180, 252)  # Indigo-300
+        # 2. Draw Geometry with warm amber lines
+        pdf.set_draw_color(245, 158, 11)  # Amber-500
         pdf.set_line_width(0.5)
         
         # Diagonals

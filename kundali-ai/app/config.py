@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     OPENAI_TIMEOUT: int = 30
     OPENAI_RETRIES: int = 3
 
+    # ─── Local Whisper ────────────────────
+    WHISPER_MODEL_SIZE: str = "base"
+    WHISPER_DEVICE: str = "cpu"
+    WHISPER_COMPUTE_TYPE: str = "int8"
+
+
     class Config:
         env_file = ".env"
         case_sensitive = True

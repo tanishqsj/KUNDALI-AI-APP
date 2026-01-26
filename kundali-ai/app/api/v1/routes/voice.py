@@ -79,6 +79,7 @@ async def voice_interaction(
             kundali_core_id=kundali_core_id,
             kundali_chart=kundali_chart,
             audio_bytes=audio_bytes,
+            audio_filename=audio.filename or "audio.wav",
             match_context=match_context,
         ),
         media_type="text/event-stream"

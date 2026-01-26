@@ -21,6 +21,7 @@ from app.persistence.models.kundali_derived import KundaliDerived
 from app.persistence.repositories.kundali_match_repo import KundaliMatchRepository
 from app.services.kundali_service import KundaliService
 from app.services.matching_service import MatchingService
+from app.services.matching_report_service import MatchingReportService
 
 
 router = APIRouter()
@@ -268,4 +269,159 @@ async def get_match(
         factors=match_record.factors,
         boy_name=boy_name,
         girl_name=girl_name,
+    )
+
+
+# ─────────────────────────────────────────────
+# Report Endpoints
+# ─────────────────────────────────────────────
+
+@router.get(
+    "/report/text/{match_id}",
+    summary="Get detailed text report for a match",
+)
+async def get_match_text_report(
+    match_id: UUID,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """
+    Generate a detailed text report with interpretations for each Ashta Koot factor.
+    """
+    match_repo = KundaliMatchRepository(session)
+    match_record = await match_repo.get_by_id(match_id)
+
+    if not match_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Match not found",
+        )
+
+    # Get names from birth profiles
+    boy_core = await session.execute(
+        select(KundaliCore).where(KundaliCore.id == match_record.boy_kundali_id)
+    )
+    girl_core = await session.execute(
+        select(KundaliCore).where(KundaliCore.id == match_record.girl_kundali_id)
+    )
+    
+    boy_kundali = boy_core.scalar_one()
+    girl_kundali = girl_core.scalar_one()
+
+    boy_profile = await session.execute(
+        select(BirthProfile).where(BirthProfile.id == boy_kundali.birth_profile_id)
+    )
+    girl_profile = await session.execute(
+        select(BirthProfile).where(BirthProfile.id == girl_kundali.birth_profile_id)
+    )
+
+    boy_name = boy_profile.scalar_one().name
+    girl_name = girl_profile.scalar_one().name
+
+    # Build the report with interpretations
+    report_service = MatchingReportService()
+    
+    match_data = {
+        "match_id": str(match_record.id),
+        "total_score": match_record.total_score,
+        "max_score": match_record.max_score,
+        "percentage": round((match_record.total_score / match_record.max_score) * 100, 1),
+        "verdict": match_record.verdict,
+        "factors": match_record.factors,
+    }
+    
+    report = report_service.build_matching_report(
+        match_data=match_data,
+        boy_name=boy_name,
+        girl_name=girl_name,
+    )
+    
+    return report
+
+
+@router.get(
+    "/report/pdf/{match_id}",
+    summary="Download PDF report for a match",
+)
+async def get_match_pdf_report(
+    match_id: UUID,
+    user=Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """
+    Generate and download a PDF report for Kundali matching.
+    """
+    from fastapi.responses import Response
+    from app.services.pdf_service import PDFService
+    
+    match_repo = KundaliMatchRepository(session)
+    match_record = await match_repo.get_by_id(match_id)
+
+    if not match_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Match not found",
+        )
+
+    # Get names and birth details from profiles
+    boy_core = await session.execute(
+        select(KundaliCore).where(KundaliCore.id == match_record.boy_kundali_id)
+    )
+    girl_core = await session.execute(
+        select(KundaliCore).where(KundaliCore.id == match_record.girl_kundali_id)
+    )
+    
+    boy_kundali = boy_core.scalar_one()
+    girl_kundali = girl_core.scalar_one()
+
+    boy_profile_result = await session.execute(
+        select(BirthProfile).where(BirthProfile.id == boy_kundali.birth_profile_id)
+    )
+    girl_profile_result = await session.execute(
+        select(BirthProfile).where(BirthProfile.id == girl_kundali.birth_profile_id)
+    )
+
+    boy_profile = boy_profile_result.scalar_one()
+    girl_profile = girl_profile_result.scalar_one()
+
+    # Build the report with interpretations
+    report_service = MatchingReportService()
+    
+    match_data = {
+        "match_id": str(match_record.id),
+        "total_score": match_record.total_score,
+        "max_score": match_record.max_score,
+        "percentage": round((match_record.total_score / match_record.max_score) * 100, 1),
+        "verdict": match_record.verdict,
+        "factors": match_record.factors,
+    }
+    
+    report = report_service.build_matching_report(
+        match_data=match_data,
+        boy_name=boy_profile.name,
+        girl_name=girl_profile.name,
+    )
+    
+    # Add birth details for PDF
+    report["boy_details"] = {
+        "name": boy_profile.name,
+        "birth_date": str(boy_profile.birth_date) if boy_profile.birth_date else None,
+        "birth_time": str(boy_profile.birth_time) if boy_profile.birth_time else None,
+        "birth_place": boy_profile.birth_place,
+    }
+    report["girl_details"] = {
+        "name": girl_profile.name,
+        "birth_date": str(girl_profile.birth_date) if girl_profile.birth_date else None,
+        "birth_time": str(girl_profile.birth_time) if girl_profile.birth_time else None,
+        "birth_place": girl_profile.birth_place,
+    }
+    
+    # Generate PDF
+    pdf_service = PDFService()
+    result = pdf_service.render_matching_pdf(report)
+    
+    return Response(
+        content=result["bytes"],
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={result['filename']}"}
     )

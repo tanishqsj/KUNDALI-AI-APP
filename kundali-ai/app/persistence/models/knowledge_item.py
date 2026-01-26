@@ -8,6 +8,8 @@ class KnowledgeItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     content = Column(Text, nullable=False)
     metadata_info = Column(String, nullable=True)  # e.g. "BPHS Chapter 4"
+    category = Column(String, nullable=True, index=True)  # e.g. "career", "health"
+    keywords = Column(String, nullable=True) # e.g. "job, promotion, saturn"
     # Add HNSW index configuration
     embedding = Column(Vector(1536))
     

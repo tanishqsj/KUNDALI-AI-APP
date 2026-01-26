@@ -178,6 +178,11 @@ class QueryRouter:
             except Exception as e:
                 print(f"⚠️ [DB] Failed to save AI message: {e}")
 
+        # 7. Yield RAG Sources for Citation Display
+        sources = self.knowledge_service.get_last_sources()
+        if sources:
+            yield json.dumps({"sources": sources}) + "\n"
+
     async def answer(
         self,
         *,

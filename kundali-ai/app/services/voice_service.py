@@ -103,6 +103,7 @@ class VoiceService:
         kundali_core_id: UUID,
         kundali_chart,
         audio_bytes: bytes,
+        audio_filename: str = "audio.wav",
         language: str = "en",
         match_context: Dict[str, Any] | None = None,
     ):
@@ -129,6 +130,7 @@ class VoiceService:
         # 2. Speech → text (Real Whisper)
         question_text = await self._speech_to_text_stub(
             audio_bytes=audio_bytes,
+            audio_filename=audio_filename,
             language=language,
         )
 
@@ -204,29 +206,24 @@ class VoiceService:
         self,
         *,
         audio_bytes: bytes,
+        audio_filename: str = "audio.wav",
         language: str,
     ) -> str:
         """
-        Real Speech-to-Text using OpenAI Whisper.
+        Real Speech-to-Text using Local Whisper.
         """
-        import io
-        from openai import AsyncOpenAI
-        from app.config import settings
-
-        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-        
-        # Create a file-like object
-        # OpenAI API expects a tuple (filename, file, content_type)
-        audio_file = io.BytesIO(audio_bytes)
-        audio_file.name = "audio.wav" 
+        import asyncio
+        from app.ai.transcriber import Transcriber
 
         try:
-            transcript = await client.audio.transcriptions.create(
-                model="whisper-1",
-                file=audio_file,
-                language=language if language != "en" else None # Auto-detect for english or if not specified
+            transcriber = Transcriber()
+            # Run blocking transcription in a separate thread
+            loop = asyncio.get_running_loop()
+            text = await loop.run_in_executor(
+                None, 
+                lambda: transcriber.transcribe(audio_bytes, language)
             )
-            return transcript.text
+            return text
         except Exception as e:
             print(f"STT Error: {e}")
             return "Could not understand audio."

@@ -110,34 +110,63 @@ class AIService:
         )
 
         # ─────────────────────────────────────────────
-        # 2. INJECT RAG CONTEXT
+        # 2. INJECT RAG CONTEXT (Enhanced)
         # ─────────────────────────────────────────────
 
         if rag_context:
-            context_str = "\n\n".join(rag_context)
+            # Structure RAG context for better LLM comprehension
+            context_blocks = []
+            for i, ctx in enumerate(rag_context, 1):
+                context_blocks.append(f"📖 Reference #{i}:\n{ctx}")
             
-            # 👇 THIS IS THE "MAXIMUM USE" PROMPT 👇
+            context_str = "\n\n".join(context_blocks)
+            
+            # Enhanced RAG prompt with clear instructions
             additional_instructions = (
-                "\n\n🛑 IMPORTANT: SHASTRA REFERENCE (RAG DATA) 🛑\n"
-                "You have access to the following authentic Vedic scriptures (Shastras) retrieved specifically for this query:\n"
-                "--------------------------------------------------\n"
-                f"{context_str}\n"
-                "--------------------------------------------------\n"
-                "GUIDELINES FOR USING THIS CONTEXT:\n"
-                "1. PRIORITY: This context is your Primary Source of Truth. If it conflicts with general knowledge, follow this context.\n"
-                "2. CITATION: When you make a prediction based on these texts, mention the source (e.g., 'According to Phaladeepika...').\n"
-                "3. APPLICATION: Apply the specific rules found in the context to the planetary positions in the provided Kundali Chart.\n"
-                "4. ACCURACY: Do not hallucinate. If the context mentions a specific yoga or effect, quote it accurately.\n"
+                "\n\n═══════════════════════════════════════════════════════\n"
+                "🛕 VEDIC SCRIPTURE REFERENCES (SHASTRA-BASED RAG)\n"
+                "═══════════════════════════════════════════════════════\n"
+                "The following excerpts are from authentic Vedic astrology texts, "
+                "retrieved specifically for this query. Use them as your PRIMARY SOURCE:\n\n"
+                f"{context_str}\n\n"
+                "───────────────────────────────────────────────────────\n"
+                "📌 HOW TO USE THESE REFERENCES:\n"
+                "1. PRIORITIZE: These texts are authoritative. If they mention specific "
+                "planetary combinations or houses, apply them to the user's chart.\n"
+                "2. CITE SOURCES: Say 'According to [Source Name]...' when using these references.\n"
+                "3. BE SPECIFIC: Look for exact yogas, doshas, or rules mentioned and check "
+                "if they apply to this person's planetary positions.\n"
+                "4. CONNECT: Link the scriptural wisdom to the specific planets/houses in the chart.\n"
+                "5. NATURAL INTEGRATION: Do NOT say 'Refer to Reference #3' or 'For further understanding...'. \n"
+                "   Instead, simply state the fact: 'Ancient texts like Phaladeepika explain that...'\n"
+                "   Your goal is to be an authoritative astrologer, not a librarian directing users to books.\n"
+                "───────────────────────────────────────────────────────\n"
             )
             
-            # Append to System Prompt (giving it high importance)
-            prompt["system"] = prompt["system"] + additional_instructions
-            
-            # OPTIONAL: Uncomment this if you want to see the FULL prompt in logs
-            # print(f"📜 [DEBUG] Final System Prompt:\n{prompt['system']}")
+            # Prepend to system prompt (higher priority than appending)
+            prompt["system"] = additional_instructions + "\n" + prompt["system"]
 
         # ─────────────────────────────────────────────
-        # 2.5 INJECT LANGUAGE INSTRUCTION
+        # 2.5 INJECT FORMATTING/LATEX INSTRUCTION
+        # ─────────────────────────────────────────────
+        formatting_instruction = (
+            "\n\n🎨 **FORMATTING GUIDELINES (KaTeX)** 🎨\n"
+            "The chat UI renders math using KaTeX, NOT full LaTeX. Follow these rules STRICTLY:\n\n"
+            "✅ **DO:**\n"
+            "- Use `$$...$$` delimiters for display-mode tables/charts (NOT code blocks!)\n"
+            "- Use `$...$` for inline math like degrees $28°15'$\n"
+            "- Use the `array` environment for tables:\n"
+            "  $$\\begin{array}{|c|c|c|} \\hline \\textbf{Planet} & \\textbf{Sign} & \\textbf{House} \\\\ \\hline Sun & Aries & 1 \\\\ \\hline \\end{array}$$\n\n"
+            "❌ **DO NOT:**\n"
+            "- Do NOT wrap LaTeX in markdown code blocks (```latex ... ```)\n"
+            "- Do NOT use `\\documentclass`, `\\begin{document}`, or `\\begin{tabular}`\n"
+            "- Do NOT use unsupported environments\n\n"
+            "For simple text, use markdown: **bold**, *italic*, - bullets.\n"
+        )
+        prompt["system"] = prompt["system"] + formatting_instruction
+
+        # ─────────────────────────────────────────────
+        # 2.6 INJECT LANGUAGE INSTRUCTION
         # ─────────────────────────────────────────────
         if language and language.lower() != "english":
             language_instruction = (
@@ -279,15 +308,22 @@ class AIService:
             
             prompt["system"] += match_str
 
-        # RAG Injection
+        # RAG Injection (Enhanced)
         if rag_context:
-            context_str = "\n\n".join(rag_context)
+            context_blocks = []
+            for i, ctx in enumerate(rag_context, 1):
+                context_blocks.append(f"📖 Reference #{i}:\n{ctx}")
+            context_str = "\n\n".join(context_blocks)
+            
             additional_instructions = (
-                "\n\n🛑 IMPORTANT: SHASTRA REFERENCE (RAG DATA) 🛑\n"
-                f"{context_str}\n"
-                "Use this as primary source.\n"
+                "\n\n═══════════════════════════════════════════════════════\n"
+                "🛕 VEDIC SCRIPTURE REFERENCES (SHASTRA-BASED RAG)\n"
+                "═══════════════════════════════════════════════════════\n"
+                f"{context_str}\n\n"
+                "📌 CITE these sources when answering. Apply rules to the chart.\n"
+                "───────────────────────────────────────────────────────\n"
             )
-            prompt["system"] += additional_instructions
+            prompt["system"] = additional_instructions + prompt["system"]
 
         # Language
         if language and language.lower() != "english":

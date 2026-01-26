@@ -5,10 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ask the Stars - Kundali AI</title>
-    <!-- Fonts -->
     <link
         href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Outfit:wght@200;300;400;500;600&display=swap"
         rel="stylesheet">
+    <!-- KaTeX for LaTeX rendering (loaded synchronously) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -97,6 +99,94 @@
 
         #chatBox::-webkit-scrollbar-thumb:hover {
             background: #555;
+        }
+
+        /* KaTeX Dark Theme Styling */
+        .katex-display {
+            background-color: rgba(0, 0, 0, 0.2) !important;
+            color: #f1f5f9 !important;
+            padding: 1rem !important;
+            border-radius: 0.5rem !important;
+            font-size: 1rem !important;
+
+            /* Layout */
+            display: block !important;
+            min-height: 2em !important;
+            overflow-x: auto !important;
+            position: relative !important;
+            margin: 1rem 0 !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        }
+
+        /* Inline math styling */
+        .katex {
+            color: #e2e8f0 !important;
+            font-size: 1.05em !important;
+        }
+
+        /* Ensure all internal elements inherit the light color */
+        .katex-display .katex,
+        .katex-display .katex * {
+            color: #f1f5f9 !important;
+            border-color: #94a3b8 !important;
+        }
+
+        /* Fix vlist positioning - this is often the culprit */
+        .katex .vlist-t,
+        .katex .vlist-t2,
+        .katex .vlist-r,
+        .katex .vlist,
+        .katex .vlist-s {
+            position: relative !important;
+            display: inline-block !important;
+            vertical-align: middle !important;
+        }
+
+        /* Force all nested elements visible */
+        .katex span,
+        .katex .mord,
+        .katex .mbin,
+        .katex .mrel,
+        .katex .mopen,
+        .katex .mclose,
+        .katex .mpunct,
+        .katex .minner,
+        .katex .mtable,
+        .katex .col-align-c,
+        .katex .col-align-l,
+        .katex .col-align-r {
+            color: #f1f5f9 !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+
+        /* Table specific fixes */
+        .katex .mtable {
+            display: inline-table !important;
+            border-collapse: collapse !important;
+        }
+
+        .katex .arraycolsep {
+            width: 0.5em !important;
+        }
+
+        /* Table borders */
+        .katex .vertical-separator {
+            border-left: 1px solid #94a3b8 !important;
+            min-width: 1px !important;
+            display: inline-block !important;
+        }
+
+        .katex .hline {
+            border-top: 1px solid #94a3b8 !important;
+            min-height: 1px !important;
+            display: block !important;
+            width: 100% !important;
+        }
+
+        /* Fix for strut elements that might push content */
+        .katex .strut {
+            display: inline-block !important;
         }
 
         /* Typing Cursor */
@@ -302,8 +392,105 @@
 
         function formatAiText(text) {
             if (!text) return '';
-            let f = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-amber-200">$1</strong>')
+
+            // Helper: Try to render LaTeX, fallback to styled code block
+            function tryRenderKatex(latex, displayMode) {
+                // Check if KaTeX is loaded
+                if (typeof katex === 'undefined') {
+                    console.error('KaTeX not loaded!');
+                    const escaped = latex.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    return `<code class="text-amber-300 bg-slate-700 px-1 rounded">${escaped}</code>`;
+                }
+                try {
+                    // Clean the input:
+                    // 1. Unescape markdown: \_ -> _, \* -> *, etc.
+                    let cleanLatex = latex
+                        .replace(/\\_/g, '_')
+                        .replace(/\\\*/g, '*')
+                        .replace(/\\\[/g, '[')
+                        .replace(/\\\]/g, ']');
+
+                    // 1. Extract body if it's a full document
+                    const bodyMatch = cleanLatex.match(/\\begin{document}([\s\S]*?)\\end{document}/);
+                    if (bodyMatch) {
+                        cleanLatex = bodyMatch[1];
+                    }
+
+                    // 1b. Strip wrapper environments like "table"
+                    cleanLatex = cleanLatex
+                        .replace(/\\begin{table}(\[[^\]]+\])?/g, '')
+                        .replace(/\\end{table}/g, '');
+
+                    // 2. Convert tabular to array (KaTeX doesn't support tabular)
+                    if (cleanLatex.includes('\\begin{tabular}')) {
+                        // Replace tabular with array, keeping alignment
+                        cleanLatex = cleanLatex
+                            .replace(/\\begin{tabular}(\{(@\{\}l+@\{\}|[^}]+)\})?/g, (match, align) => {
+                                // Default array alignment if complex tabular alignment
+                                return `\\begin{array}{${align && !align.includes('@') ? align.replace(/[{}]/g, '') : 'c|c|c|c|c'}}`;
+                            })
+                            .replace(/\\end{tabular}/g, '\\end{array}')
+                            // Remove unsupported booktabs commands
+                            .replace(/\\toprule/g, '\\hline')
+                            .replace(/\\midrule/g, '\\hline')
+                            .replace(/\\bottomrule/g, '\\hline')
+                            .replace(/\\centering/g, '')
+                            .replace(/\\caption\{[^}]+\}/g, '');
+
+                        // If no alignment specified, add default center alignment
+                        if (!cleanLatex.includes('\\begin{array}{')) {
+                            cleanLatex = cleanLatex.replace('\\begin{array}', '\\begin{array}{c|c|c|c|c}');
+                        }
+                    }
+
+                    cleanLatex = cleanLatex.trim();
+
+                    const rendered = katex.renderToString(cleanLatex, { displayMode, throwOnError: true });
+                    // Debug Log
+                    if (displayMode) console.log("KaTeX Rendered:", rendered.substring(0, 100) + "...");
+
+                    return displayMode
+                        ? `<div class="katex-display my-3 overflow-x-auto">${rendered}</div>`
+                        : rendered;
+                } catch (e) {
+                    console.warn('KaTeX Error:', e.message, 'Input:', latex.substring(0, 100));
+                    // Fallback: show raw LaTeX in a styled block
+                    const escaped = latex.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    return displayMode
+                        ? `<div class="my-3 p-3 bg-slate-800/50 border border-amber-500/30 rounded-lg overflow-x-auto"><code class="text-amber-300 text-xs whitespace-pre">${escaped}</code><div class="text-red-400 text-xs mt-2">⚠️ LaTeX Error: ${e.message}</div></div>`
+                        : `<code class="px-1 bg-slate-700 text-amber-300 rounded text-xs">${escaped}</code>`;
+                }
+            }
+
+            // 0. Handle Markdown Code Blocks containing LaTeX (```latex ... ```)
+            let f = text.replace(/```latex([\s\S]+?)```/g, (match, content) => tryRenderKatex(content, true));
+
+            // 0b. Handle generic code blocks that might look like LaTeX (fallback)
+            f = f.replace(/```([\s\S]+?)```/g, (match, content) => {
+                if (content.includes('begin{array}') || content.includes('$$') || content.includes('\\[')) {
+                    return tryRenderKatex(content, true);
+                }
+                // Return as normal code block if not LaTeX
+                return `<pre class="bg-black/30 p-3 rounded-lg overflow-x-auto my-2 text-xs font-mono text-purple-200 border border-white/10">${content.replace(/</g, '&lt;')}</pre>`;
+            });
+
+            // 1a. Render display LaTeX blocks ($$...$$)
+            f = f.replace(/\$\$([\s\S]+?)\$\$/g, (match, latex) => tryRenderKatex(latex, true));
+
+            // 1b. Render display LaTeX blocks (\[...\])
+            f = f.replace(/\\\[([\s\S]+?)\\\]/g, (match, latex) => tryRenderKatex(latex, true));
+
+            // 2a. Render inline LaTeX ($...$)
+            f = f.replace(/\$([^\$\n]+?)\$/g, (match, latex) => tryRenderKatex(latex, false));
+
+            // 2b. Render inline LaTeX (\(...\))
+            f = f.replace(/\\\(([\s\S]+?)\\\)/g, (match, latex) => tryRenderKatex(latex, false));
+
+            // 3. Bold and Italic
+            f = f.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-amber-200">$1</strong>')
                 .replace(/\*(.*?)\*/g, '<em class="text-purple-200/80">$1</em>');
+
+            // 4. Line-by-line formatting
             return f.split('\n').map(l => {
                 const t = l.trim();
                 if (t.startsWith('-')) return `<div class="flex items-start gap-2 mb-2 ml-1"><span class="text-purple-400 font-bold mt-1">•</span><span class="text-slate-200/90 leading-relaxed">${t.substring(1)}</span></div>`;
@@ -392,6 +579,17 @@
         document.getElementById('kundaliId').addEventListener('change', loadHistory);
         if (document.getElementById('kundaliId').value) loadHistory();
 
+        // Handle Keydown (Enter to send, Shift+Enter for newline)
+        document.getElementById('question').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+                e.preventDefault();
+                // Find form and trigger submit
+                const form = document.getElementById('askForm');
+                const submitEvent = new Event('submit', { cancelable: true });
+                form.dispatchEvent(submitEvent);
+            }
+        });
+
         document.getElementById('askForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('kundaliId').value;
@@ -422,6 +620,7 @@
                 const bubble = chatBox.lastElementChild.querySelector('.msg-ai');
                 const reader = res.body.getReader(); const dec = new TextDecoder();
                 let full = '';
+                let sources = [];
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -432,9 +631,32 @@
                             try {
                                 const d = JSON.parse(l);
                                 if (d.chunk) { full += d.chunk; bubble.innerHTML = formatAiText(full); chatBox.scrollTop = chatBox.scrollHeight; }
+                                if (d.sources) { sources = d.sources; }
                             } catch (e) { }
                         }
                     }
+                }
+
+                // Render citations at bottom of bubble
+                if (sources.length > 0) {
+                    const citationHtml = `
+                        <div class="mt-4 pt-3 border-t border-white/10">
+                            <div class="text-xs text-slate-400 mb-2">📚 References:</div>
+                            <div class="flex flex-wrap gap-2">
+                                ${sources.map(s => `
+                                    <span class="citation-badge group relative cursor-pointer px-2 py-1 bg-amber-500/10 text-amber-400 rounded text-xs hover:bg-amber-500/20 transition" data-source-id="${s.id}">
+                                        [${s.id}] ${s.source.split(' (')[0]}
+                                        <div class="citation-tooltip hidden group-hover:block absolute bottom-full left-0 mb-2 w-80 max-h-48 overflow-y-auto p-3 bg-slate-800 border border-amber-500/30 rounded-lg shadow-xl text-slate-200 text-xs z-50">
+                                            <div class="font-bold text-amber-400 mb-1">${s.source}</div>
+                                            <div class="text-slate-300 leading-relaxed">${s.content.substring(0, 500)}${s.content.length > 500 ? '...' : ''}</div>
+                                            <div class="mt-2 text-slate-500">Relevance: ${s.relevance}</div>
+                                        </div>
+                                    </span>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                    bubble.innerHTML += citationHtml;
                 }
             } catch (e) {
                 if (document.getElementById(loadingId)) document.getElementById(loadingId).remove();
@@ -456,13 +678,18 @@
                 document.getElementById('recordingStatus').classList.add('hidden');
             } else {
                 try {
+                    // Determine supported MIME type (prefer webm, fallback to mp4)
+                    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+
                     const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    rec = new MediaRecorder(s);
+                    rec = new MediaRecorder(s, { mimeType });
                     const chunks = [];
                     rec.ondataavailable = e => chunks.push(e.data);
                     rec.onstop = async () => {
-                        const blob = new Blob(chunks, { type: 'audio/wav' });
-                        const fd = new FormData(); fd.append('audio', blob, 'rec.wav');
+                        // Create blob with CORRECT mime type
+                        const blob = new Blob(chunks, { type: mimeType });
+                        const ext = mimeType.split('/')[1]; // 'webm' or 'mp4'
+                        const fd = new FormData(); fd.append('audio', blob, `rec.${ext}`);
 
                         const loadingId = 'loading-' + Date.now();
                         const div = document.createElement('div'); div.id = loadingId; div.className = 'flex animate-fade-in';
@@ -475,9 +702,90 @@
                         const res = await fetch(url, { method: 'POST', body: fd });
                         document.getElementById(loadingId).remove();
                         if (res.ok) {
-                            const data = await res.json();
-                            appendMessage('user', data.user_text);
-                            appendMessage('ai', data.ai_text, data.audio_base64, true);
+                            const reader = res.body.getReader();
+                            const dec = new TextDecoder();
+
+                            let fullUserText = '';
+                            let fullAiText = '';
+                            let audioBase64 = null;
+                            let buffer = '';
+                            let aiBubble = null; // Lazy load
+
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                if (done) break;
+
+                                buffer += dec.decode(value, { stream: true });
+                                const lines = buffer.split('\n');
+
+                                // Process all complete lines
+                                buffer = lines.pop(); // Keep the last partial line in buffer
+
+                                for (const line of lines) {
+                                    const trimmed = line.trim();
+                                    if (!trimmed) continue;
+
+                                    try {
+                                        let data;
+                                        if (trimmed.startsWith('data: ')) {
+                                            data = JSON.parse(trimmed.substring(6));
+                                        } else if (trimmed.startsWith('{')) {
+                                            data = JSON.parse(trimmed);
+                                        } else {
+                                            continue;
+                                        }
+
+                                        // Handle events based on "type"
+                                        switch (data.type) {
+                                            case 'transcription':
+                                                fullUserText = data.text;
+                                                appendMessage('user', fullUserText);
+                                                break;
+
+                                            case 'text':
+                                                if (data.chunk) {
+                                                    // Lazy create AI bubble if not exists
+                                                    if (!aiBubble) {
+                                                        appendMessage('ai', '');
+                                                        const bubbles = chatBox.getElementsByClassName('msg-ai');
+                                                        aiBubble = bubbles[bubbles.length - 1];
+                                                    }
+
+                                                    fullAiText += data.chunk;
+                                                    aiBubble.innerHTML = formatAiText(fullAiText);
+                                                    chatBox.scrollTop = chatBox.scrollHeight;
+                                                }
+                                                break;
+
+                                            case 'audio':
+                                                if (data.chunk) {
+                                                    if (!audioBase64) audioBase64 = "";
+                                                    audioBase64 += data.chunk;
+                                                }
+                                                break;
+                                        }
+                                    } catch (e) {
+                                        console.warn('SSE Parse Error', e);
+                                    }
+                                }
+                            }
+
+                            // If we got audio, inject the player into the AI bubble
+                            if (audioBase64) {
+                                const id = `audio-${Date.now()}`;
+                                const canvasId = `vis-${Date.now()}`;
+                                const playerHtml = `
+                                    <div class="mt-3 pt-3 border-t border-white/10">
+                                        <canvas id="${canvasId}" class="visualizer-canvas mb-2"></canvas>
+                                        <div class="flex items-center gap-2">
+                                             <button id="btn-${id}" onclick="toggleAudio('${id}')" class="w-8 h-8 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 transition text-white"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+                                             <div class="flex-grow h-1 bg-white/10 rounded-full overflow-hidden"><div id="bar-${id}" class="h-full bg-purple-500 w-0 transition-all duration-300"></div></div>
+                                        </div>
+                                        <audio id="${id}" src="data:audio/wav;base64,${audioBase64}" autoplay class="hidden" 
+                                            onplay="startVis('${canvasId}',this);updBtn('${id}',1)" onpause="updBtn('${id}',0)" onended="updBtn('${id}',0)" ontimeupdate="updProg('${id}')"></audio>
+                                    </div>`;
+                                aiBubble.innerHTML += playerHtml;
+                            }
                         }
                     };
                     rec.start();

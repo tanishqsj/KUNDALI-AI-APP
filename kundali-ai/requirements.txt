@@ -16,3 +16,4 @@ langchain
 langchain-text-splitters
 pypdf
 edge-tts
+faster-whisper

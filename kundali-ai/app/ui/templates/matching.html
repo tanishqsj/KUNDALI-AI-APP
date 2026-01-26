@@ -431,6 +431,25 @@
                 <div id="factorsGrid" class="divide-y divide-white/5"></div>
             </div>
 
+            <!-- Detailed Interpretations Section -->
+            <div id="interpretations-section" class="glass-card rounded-2xl overflow-hidden hidden">
+                <div
+                    class="p-6 border-b border-white/10 bg-gradient-to-r from-purple-900/20 to-pink-900/20 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-xl font-bold text-white">📖 Detailed Interpretations</h2>
+                        <p class="text-slate-400 text-sm mt-1">In-depth analysis of each compatibility factor</p>
+                    </div>
+                    <a id="downloadPdfBtn" href="#"
+                        class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-bold transition flex items-center gap-2">
+                        📄 Download PDF
+                    </a>
+                </div>
+
+                <div id="interpretationsContent" class="p-6 space-y-6">
+                    <!-- Interpretations will be loaded here -->
+                </div>
+            </div>
+
             <!-- Summary Actions -->
             <div class="p-8 text-center">
                 <p class="text-slate-500 text-sm mb-4">Want a deeper analysis of this match?</p>
@@ -709,6 +728,96 @@
                     <div class="text-center ${color} font-bold text-xs uppercase tracking-wider">${percent >= 50 ? 'Good' : 'Low'}</div>
                 `;
                 factorsGrid.appendChild(row);
+            });
+
+            // Fetch and display interpretations
+            fetchInterpretations(data.match_id);
+        }
+
+        // Fetch interpretations from the API
+        async function fetchInterpretations(matchId) {
+            try {
+                const res = await fetch(`${API_BASE}/api/v1/matching/report/text/${matchId}`);
+                if (!res.ok) {
+                    console.log('Could not fetch interpretations');
+                    return;
+                }
+                const report = await res.json();
+                displayInterpretations(report);
+
+                // Set PDF download link
+                document.getElementById('downloadPdfBtn').href = `${API_BASE}/api/v1/matching/report/pdf/${matchId}`;
+                document.getElementById('downloadPdfBtn').setAttribute('target', '_blank');
+            } catch (err) {
+                console.error('Error fetching interpretations:', err);
+            }
+        }
+
+        // Display interpretations in the UI
+        function displayInterpretations(report) {
+            const section = document.getElementById('interpretations-section');
+            const content = document.getElementById('interpretationsContent');
+
+            if (!report.interpretation) {
+                return;
+            }
+
+            section.classList.remove('hidden');
+            content.innerHTML = '';
+
+            // Factor definitions with full class names (Tailwind CDN needs static classes)
+            const factors = [
+                {
+                    key: 'varna', name: 'Varna', icon: '🎓', area: 'Work & Status',
+                    cardClass: 'bg-purple-900/10 border-purple-500/20 hover:bg-purple-900/20', labelClass: 'text-purple-400'
+                },
+                {
+                    key: 'vasya', name: 'Vasya', icon: '🤝', area: 'Dominance & Control',
+                    cardClass: 'bg-blue-900/10 border-blue-500/20 hover:bg-blue-900/20', labelClass: 'text-blue-400'
+                },
+                {
+                    key: 'tara', name: 'Tara', icon: '⭐', area: 'Destiny & Health',
+                    cardClass: 'bg-amber-900/10 border-amber-500/20 hover:bg-amber-900/20', labelClass: 'text-amber-400'
+                },
+                {
+                    key: 'yoni', name: 'Yoni', icon: '🦁', area: 'Physical & Intimacy',
+                    cardClass: 'bg-pink-900/10 border-pink-500/20 hover:bg-pink-900/20', labelClass: 'text-pink-400'
+                },
+                {
+                    key: 'rasi_lord', name: 'Rasi Lord', icon: '🌙', area: 'Mental Compatibility',
+                    cardClass: 'bg-indigo-900/10 border-indigo-500/20 hover:bg-indigo-900/20', labelClass: 'text-indigo-400'
+                },
+                {
+                    key: 'gana', name: 'Gana', icon: '🎭', area: 'Temperament & Nature',
+                    cardClass: 'bg-green-900/10 border-green-500/20 hover:bg-green-900/20', labelClass: 'text-green-400'
+                },
+                {
+                    key: 'bhakoot', name: 'Bhakoot', icon: '💰', area: 'Love & Prosperity',
+                    cardClass: 'bg-rose-900/10 border-rose-500/20 hover:bg-rose-900/20', labelClass: 'text-rose-400'
+                },
+                {
+                    key: 'nadi', name: 'Nadi', icon: '🧬', area: 'Health & Progeny',
+                    cardClass: 'bg-cyan-900/10 border-cyan-500/20 hover:bg-cyan-900/20', labelClass: 'text-cyan-400'
+                },
+            ];
+
+            factors.forEach(f => {
+                const text = report.interpretation[f.key];
+                if (!text) return;
+
+                const card = document.createElement('div');
+                card.className = `${f.cardClass} border rounded-xl p-5 transition`;
+                card.innerHTML = `
+                    <div class="flex items-center gap-3 mb-3">
+                        <span class="text-2xl">${f.icon}</span>
+                        <div>
+                            <h3 class="font-bold text-white text-lg font-serif">${f.name}</h3>
+                            <span class="text-xs ${f.labelClass} uppercase tracking-wider">${f.area}</span>
+                        </div>
+                    </div>
+                    <p class="text-slate-300 text-sm leading-relaxed">${text}</p>
+                `;
+                content.appendChild(card);
             });
         }
 
